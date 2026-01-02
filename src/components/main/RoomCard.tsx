@@ -1,26 +1,64 @@
 import React from 'react';
-import { Users, Lock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, Lock, ChevronRight } from 'lucide-react';
 import Button from '../common/Button';
 
 interface RoomCardProps {
+    id: number;
     region: string;
     isOfficial: boolean;
     title: string;
     description: string;
     participants: number;
+    createdAt: string;
 }
 
+const TAG_COLORS = [
+    { bg: '#F5D0FE', text: '#A21CAF' }, // Primary Pink
+    { bg: '#E9D5FF', text: '#7C3AED' }, // Primary Lavender
+    { bg: '#FFEDD5', text: '#EA580C' }, // Secondary Peach
+    { bg: '#FEF3C7', text: '#CA8A04' }, // Secondary Yellow
+    { bg: '#DBEAFE', text: '#2563EB' }, // Point Blue
+    { bg: '#D1FAE5', text: '#059669' }, // Point Mint
+];
+
 const RoomCard: React.FC<RoomCardProps> = ({
+    id,
     region,
     isOfficial,
     title,
     description,
     participants,
+    createdAt,
 }) => {
+    const navigate = useNavigate();
+
+    // Get a consistent color based on the title
+    const getColorForRoom = (str: string) => {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const index = Math.abs(hash) % TAG_COLORS.length;
+        return TAG_COLORS[index];
+    };
+
+    const tagColor = getColorForRoom(title);
+
+    const handleCardClick = () => {
+        navigate(`/room/${id}`);
+    };
+
     return (
-        <div className="bg-white border border-neutral-200 rounded-2xl p-5 shadow-sm transition-all duration-200 cursor-pointer hover:shadow-lg hover:border-primary-200 hover:-translate-y-0.5 flex flex-col gap-4">
+        <div
+            className="group bg-white border border-neutral-200 rounded-2xl p-5 shadow-sm transition-all duration-200 cursor-pointer hover:shadow-lg hover:border-primary-200 hover:-translate-y-0.5 flex flex-col gap-4 h-[240px]"
+            onClick={handleCardClick}
+        >
             <div className="flex items-center justify-between">
-                <span className="inline-flex px-3 py-1 bg-secondary-100 text-secondary-500 rounded-lg text-xs font-medium">
+                <span
+                    className="inline-flex px-3 py-1 rounded-lg text-xs font-medium"
+                    style={{ backgroundColor: tagColor.bg, color: tagColor.text }}
+                >
                     {region}
                 </span>
                 {isOfficial && (
@@ -32,19 +70,23 @@ const RoomCard: React.FC<RoomCardProps> = ({
             </div>
 
             <div className="flex flex-col gap-2">
-                <h3 className="text-neutral-800 font-semibold line-clamp-1">{title}</h3>
-                <p className="text-neutral-500 text-sm line-clamp-2 leading-relaxed">
+                <h3 className="text-neutral-800 font-semibold line-clamp-1 group-hover:text-primary-600 transition-colors">{title}</h3>
+                <p className="text-neutral-500 text-sm line-clamp-3 leading-relaxed">
                     {description}
                 </p>
             </div>
 
             <div className="mt-auto flex items-center justify-between pt-4 border-t border-neutral-100">
-                <div className="flex items-center gap-1.5 text-neutral-400">
-                    <Users size={14} />
-                    <span className="text-xs">{participants}명 참여 중</span>
+                <div className="flex items-center gap-2 text-neutral-400 text-xs">
+                    <div className="flex items-center gap-1">
+                        <Users size={14} />
+                        <span>{participants}명 참여 중</span>
+                    </div>
+                    <span className="text-neutral-300">|</span>
+                    <span>{createdAt}</span>
                 </div>
-                <Button variant="ghost" className="!p-0 !h-auto text-primary-500 font-semibold hover:bg-transparent">
-                    입장하기 →
+                <Button variant="ghost" className="!p-0 !h-auto text-primary-500 font-semibold hover:bg-transparent flex items-center gap-0.5 group-hover:gap-1.5 transition-all">
+                    입장하기 <ChevronRight size={16} />
                 </Button>
             </div>
         </div>
