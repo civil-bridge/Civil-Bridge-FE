@@ -1,7 +1,12 @@
 import React from 'react';
 import { Link, NavLink } from 'react-router-dom';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+    activeTab?: 'all' | 'joined';
+    onTabChange?: (tab: string) => void;
+}
+
+const Header: React.FC<HeaderProps> = ({ activeTab, onTabChange }) => {
     return (
         <header className="w-full h-16 bg-white border-b border-neutral-200 flex items-center relative z-20">
             <div className="w-full max-w-[1280px] mx-auto px-8 flex items-center justify-between">
@@ -12,28 +17,24 @@ const Header: React.FC = () => {
                     </Link>
 
                     <nav className="flex items-center gap-8 ml-12">
-                        <NavLink
-                            to="/"
-                            className={({ isActive }) =>
-                                `text-base font-medium transition-colors relative py-5 ${isActive
-                                    ? 'text-primary-500 after:content-[""] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-primary-500'
-                                    : 'text-neutral-500 hover:text-primary-500'
-                                }`
-                            }
+                        <button
+                            onClick={() => onTabChange?.('all')}
+                            className={`text-base font-medium transition-colors relative py-5 ${activeTab === 'all'
+                                ? 'text-primary-500 after:content-[""] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-primary-500'
+                                : 'text-neutral-500 hover:text-primary-500'
+                                }`}
                         >
                             전체논의방
-                        </NavLink>
-                        <NavLink
-                            to="/participating"
-                            className={({ isActive }) =>
-                                `text-base font-medium transition-colors relative py-5 ${isActive
-                                    ? 'text-primary-500 after:content-[""] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-primary-500'
-                                    : 'text-neutral-500 hover:text-primary-500'
-                                }`
-                            }
+                        </button>
+                        <button
+                            onClick={() => onTabChange?.('joined')}
+                            className={`text-base font-medium transition-colors relative py-5 ${activeTab === 'joined'
+                                ? 'text-primary-500 after:content-[""] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-primary-500'
+                                : 'text-neutral-500 hover:text-primary-500'
+                                }`}
                         >
                             내가참여중
-                        </NavLink>
+                        </button>
                         <NavLink
                             to="/myroom"
                             className={({ isActive }) =>

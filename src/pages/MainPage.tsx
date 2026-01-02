@@ -1,15 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Header from '../components/common/Header';
 import HeroSection from '../components/main/HeroSection';
 import RoomListSection from '../components/main/RoomListSection';
 
 const MainPage: React.FC = () => {
+    const [activeTab, setActiveTab] = useState<'all' | 'joined'>('all');
+
     return (
         <div className="min-h-screen flex flex-col">
-            <Header />
+            <Header activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab as 'all' | 'joined')} />
             <main className="flex-grow">
                 <HeroSection />
-                <RoomListSection />
+                <RoomListSection activeTab={activeTab} />
             </main>
 
             {/* Simple Footer */}

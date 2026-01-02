@@ -59,7 +59,15 @@ const MOCK_ROOMS = [
     },
 ];
 
-const RoomListSection: React.FC = () => {
+interface RoomListSectionProps {
+    activeTab: 'all' | 'joined';
+}
+
+const RoomListSection: React.FC<RoomListSectionProps> = ({ activeTab }) => {
+    const filteredRooms = activeTab === 'all'
+        ? MOCK_ROOMS
+        : MOCK_ROOMS.filter(r => r.id % 2 === 0);
+
     return (
         <section className="py-16 md:py-24 bg-neutral-50">
             <div className="max-w-[1280px] mx-auto px-4 md:px-6 lg:px-8">
@@ -67,7 +75,7 @@ const RoomListSection: React.FC = () => {
                     <div className="flex flex-col gap-1">
                         <div className="flex items-center justify-between">
                             <h2 className="text-2xl md:text-3xl font-semibold text-neutral-800">
-                                실시간 인기 토의실
+                                {activeTab === 'all' ? '실시간 인기 토의실' : '내가 참여 중인 토의실'}
                             </h2>
                             <button className="flex items-center gap-2 px-4 py-2 border border-neutral-200 rounded-lg bg-white text-sm text-neutral-600 hover:bg-neutral-100 transition-colors">
                                 최신순
@@ -75,12 +83,16 @@ const RoomListSection: React.FC = () => {
                             </button>
                         </div>
                         <p className="text-neutral-500">
-                            지금 이슈가 되고 있는 <span className="text-primary-500 font-semibold">{MOCK_ROOMS.length}</span>개의 토의가 진행 중입니다.
+                            {activeTab === 'all' ? (
+                                <>지금 이슈가 되고 있는 <span className="text-primary-500 font-semibold">{filteredRooms.length}</span>개의 토의가 진행 중입니다.</>
+                            ) : (
+                                <>현재 <span className="text-primary-500 font-semibold">{filteredRooms.length}</span>개의 토의에 참여하고 있습니다.</>
+                            )}
                         </p>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {MOCK_ROOMS.map((room) => (
+                        {filteredRooms.map((room) => (
                             <RoomCard key={room.id} {...room} />
                         ))}
                     </div>
