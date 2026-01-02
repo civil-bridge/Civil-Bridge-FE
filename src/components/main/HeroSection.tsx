@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
+import CreateRoomModal from './CreateRoomModal';
 
 const HeroSection: React.FC = () => {
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
     return (
         <section className="max-w-[1280px] mx-auto px-4 md:px-6 lg:px-8">
             <div className="hero-gradient rounded-[24px] px-12 py-16 mt-8 mb-12 relative overflow-hidden text-white">
@@ -16,11 +19,19 @@ const HeroSection: React.FC = () => {
                     <p className="text-lg opacity-90 mb-8">
                         지역 문제를 함께 논의하고 해결책을 제안하는 열린 공간입니다
                     </p>
-                    <button className="bg-white text-primary-600 px-7 py-3.5 rounded-xl font-semibold hover:bg-neutral-50 transition-colors">
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="bg-white text-primary-600 px-7 py-3.5 rounded-xl font-semibold hover:bg-neutral-50 transition-colors"
+                    >
                         새로운 토의방 만들기
                     </button>
                 </div>
             </div>
+
+            <CreateRoomModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+            />
         </section>
     );
 };
