@@ -155,8 +155,8 @@ const SignupPage: React.FC = () => {
     };
 
     return (
-        <div className="page-container">
-            <div className="card">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#FAF5FF] via-[#F5F5F4] to-[#FFF7ED] py-10 px-4">
+            <div className="w-full max-w-[400px] bg-white p-8 rounded-2xl border border-neutral-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
                 <Logo className="mb-8" />
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-6">
@@ -299,9 +299,9 @@ const SignupPage: React.FC = () => {
                     </Button>
                 </form>
 
-                <p className="text-center mt-6" style={{ fontSize: '14px', color: 'var(--neutral-600)' }}>
+                <p className="text-center mt-6 text-sm text-neutral-600">
                     이미 계정이 있으신가요?{' '}
-                    <Link to="/login" style={{ color: 'var(--primary-500)', fontWeight: '600' }}>
+                    <Link to="/login" className="text-primary-500 font-semibold hover:text-primary-600 transition-colors">
                         로그인
                     </Link>
                 </p>

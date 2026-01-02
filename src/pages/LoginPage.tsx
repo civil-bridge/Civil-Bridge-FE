@@ -48,8 +48,8 @@ const LoginPage: React.FC = () => {
     };
 
     return (
-        <div className="page-container">
-            <div className="card">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#FAF5FF] via-[#F5F5F4] to-[#FFF7ED] py-10 px-4">
+            <div className="w-full max-w-[400px] bg-white p-8 rounded-2xl border border-neutral-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
                 <Logo className="mb-8" />
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-6">
@@ -78,7 +78,7 @@ const LoginPage: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="input-toggle-btn"
+                                className="bg-transparent border-none p-1 cursor-pointer flex items-center justify-center text-neutral-400 hover:text-neutral-600 transition-colors outline-none"
                                 aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
                             >
                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
@@ -91,9 +91,9 @@ const LoginPage: React.FC = () => {
                     </Button>
                 </form>
 
-                <p className="text-center mt-6" style={{ fontSize: '14px', color: 'var(--neutral-600)' }}>
+                <p className="text-center mt-6 text-sm text-neutral-600">
                     계정이 없으신가요?{' '}
-                    <Link to="/signup" style={{ color: 'var(--primary-500)', fontWeight: '600' }}>
+                    <Link to="/signup" className="text-primary-500 font-semibold hover:text-primary-600 transition-colors">
                         회원가입
                     </Link>
                 </p>

@@ -19,21 +19,22 @@ const Input: React.FC<InputProps> = ({
     ...props
 }) => {
     return (
-        <div className={`input-container ${className}`}>
+        <div className={`flex flex-col gap-2 ${className}`}>
             {label && (
-                <label htmlFor={id} className="input-label">
+                <label htmlFor={id} className="text-sm font-medium text-neutral-700">
                     {label}
                 </label>
             )}
-            <div className="input-wrapper">
-                <div className="input-field-container">
+            <div className="flex gap-2 items-stretch">
+                <div className="relative flex-grow">
                     <input
                         id={id}
-                        className={`input-field ${error ? 'error' : ''} ${innerAction ? 'has-inner-action' : ''}`}
+                        className={`w-full bg-white border rounded-xl py-3 px-4 text-sm text-neutral-800 transition-all outline-none placeholder:text-neutral-400 focus:border-primary-400 focus:ring-3 focus:ring-primary-100 disabled:bg-neutral-100 disabled:cursor-not-allowed ${error ? 'border-error' : 'border-neutral-200'
+                            } ${innerAction ? 'pr-11' : ''}`}
                         {...props}
                     />
                     {innerAction && (
-                        <div className="input-inner-action">
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center z-10">
                             {innerAction}
                         </div>
                     )}
@@ -44,9 +45,9 @@ const Input: React.FC<InputProps> = ({
                     </div>
                 )}
             </div>
-            {error && <p className="helper-text error">{error}</p>}
+            {error && <p className="text-xs text-error">{error}</p>}
             {successMessage && !error && (
-                <p className="helper-text success">{successMessage}</p>
+                <p className="text-xs text-success">{successMessage}</p>
             )}
         </div>
     );
