@@ -19,6 +19,10 @@ const RoomPage: React.FC = () => {
 
     // Modal States
     const [activeModal, setActiveModal] = useState<string | null>(null);
+    const [kickTarget, setKickTarget] = useState<string>('');
+
+    // Context Menu State
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, name: string } | null>(null);
 
     // Dummy Data for Room
     const roomInfo = {
@@ -42,6 +46,19 @@ const RoomPage: React.FC = () => {
     const handleConfirmAction = () => {
         console.log(`Action confirmed for ${activeModal}`);
         setActiveModal(null);
+    };
+
+    const handleContextMenu = (e: React.MouseEvent, name: string) => {
+        e.preventDefault();
+        setContextMenu({
+            x: e.pageX,
+            y: e.pageY,
+            name
+        });
+    };
+
+    const closeContextMenu = () => {
+        setContextMenu(null);
     };
 
     // Profile Icon Style Mapping
@@ -103,8 +120,8 @@ const RoomPage: React.FC = () => {
                                         {msg.role === 'official' && <span className="bg-neutral-800 text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">OFFICIAL</span>}
                                     </div>
                                     <div className={`p-4 rounded-[16px] shadow-sm text-sm leading-relaxed ${msg.isMe
-                                            ? 'bg-[#F5D0FE] text-[#1C1917] rounded-tr-none'
-                                            : 'bg-white border border-[#E7E5E4] text-neutral-700 rounded-tl-none'
+                                        ? 'bg-[#F5D0FE] text-[#1C1917] rounded-tr-none'
+                                        : 'bg-white border border-[#E7E5E4] text-neutral-700 rounded-tl-none'
                                         }`}>
                                         {msg.content}
                                     </div>
@@ -226,15 +243,22 @@ const RoomPage: React.FC = () => {
                             <div className="p-6">
                                 <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-4">참여자 목록 (12명)</h3>
                                 <div className="space-y-4">
-                                    {[1, 2, 3, 4, 5].map(i => (
-                                        <div key={i} className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-xs font-bold text-neutral-400">
-                                                {i === 1 ? '방' : '참'}
+                                    {[1, 2, 3, 4, 5].map(i => {
+                                        const name = `참여자 ${i}`;
+                                        return (
+                                            <div
+                                                key={i}
+                                                className="flex items-center gap-3 p-1 rounded-lg hover:bg-neutral-50 transition-colors cursor-context-menu"
+                                                onContextMenu={(e) => i !== 1 && handleContextMenu(e, name)}
+                                            >
+                                                <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-xs font-bold text-neutral-400">
+                                                    {i === 1 ? '방' : '참'}
+                                                </div>
+                                                <span className="text-sm font-medium text-neutral-700">{name}</span>
+                                                {i === 1 && <span className="text-[10px] text-primary-500 font-bold ml-auto border border-primary-100 px-1 rounded">방장</span>}
                                             </div>
-                                            <span className="text-sm font-medium text-neutral-700">참여자 {i}</span>
-                                            {i === 1 && <span className="text-[10px] text-primary-500 font-bold ml-auto border border-primary-100 px-1 rounded">방장</span>}
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                     <button className="w-full text-center text-xs text-neutral-400 hover:text-neutral-600 py-2">
                                         참여자 전체 보기
                                     </button>
@@ -269,16 +293,6 @@ const RoomPage: React.FC = () => {
                             </div>
 
                             <div className="mt-4 border-t border-neutral-100 p-2">
-                                <h3 className="px-4 py-2 text-[10px] font-bold text-neutral-300 uppercase">관리자 기능</h3>
-                                <button
-                                    onClick={() => setActiveModal('kickParticipant')}
-                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-neutral-50 transition-colors text-error"
-                                >
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="18" y1="8" x2="23" y2="13" /><line x1="23" y1="8" x2="18" y2="13" />
-                                    </svg>
-                                    <span className="text-sm font-medium">참여자 강퇴</span>
-                                </button>
                                 <button
                                     onClick={() => setActiveModal('deleteRoom')}
                                     className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-neutral-50 transition-colors text-error"
@@ -321,10 +335,42 @@ const RoomPage: React.FC = () => {
             />
             <KickParticipantModal
                 isOpen={activeModal === 'kickParticipant'}
-                name="참여자 2"
+                name={kickTarget}
                 onClose={() => setActiveModal(null)}
                 onConfirm={handleConfirmAction}
             />
+
+            {/* Context Menu */}
+            {contextMenu && (
+                <>
+                    <div
+                        className="fixed inset-0 z-[60]"
+                        onClick={closeContextMenu}
+                        onContextMenu={(e) => {
+                            e.preventDefault();
+                            closeContextMenu();
+                        }}
+                    />
+                    <div
+                        className="fixed z-[70] bg-white border border-neutral-200 rounded-xl shadow-xl py-1 min-w-[120px]"
+                        style={{ top: contextMenu.y, left: contextMenu.x }}
+                    >
+                        <button
+                            className="w-full px-4 py-2 text-left text-sm text-error hover:bg-error/5 transition-colors flex items-center gap-2"
+                            onClick={() => {
+                                setKickTarget(contextMenu.name);
+                                setActiveModal('kickParticipant');
+                                closeContextMenu();
+                            }}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="18" y1="8" x2="23" y2="13" /><line x1="23" y1="8" x2="18" y2="13" />
+                            </svg>
+                            강퇴하기
+                        </button>
+                    </div>
+                </>
+            )}
         </div>
     );
 };
