@@ -51,8 +51,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
 
     return (
         <div
-            className="group bg-white border border-neutral-200 rounded-2xl p-5 shadow-sm transition-all duration-200 cursor-pointer hover:shadow-lg hover:border-primary-200 hover:-translate-y-0.5 flex flex-col gap-4 h-[240px]"
-            onClick={handleCardClick}
+            className="group bg-white border border-neutral-200 rounded-2xl p-5 shadow-sm transition-all duration-200 hover:shadow-lg hover:border-primary-200 flex flex-col gap-4 h-[240px]"
         >
             <div className="flex items-center justify-between">
                 <span
@@ -85,7 +84,11 @@ const RoomCard: React.FC<RoomCardProps> = ({
                     <span className="text-neutral-300">|</span>
                     <span>{createdAt}</span>
                 </div>
-                <Button variant="ghost" className="!p-0 !h-auto text-primary-500 font-semibold hover:bg-transparent flex items-center gap-0.5 group-hover:gap-1.5 transition-all">
+                <Button
+                    variant="ghost"
+                    className="!p-0 !h-auto text-primary-500 font-semibold hover:bg-transparent flex items-center gap-0.5 group-hover:gap-1.5 transition-all cursor-pointer"
+                    onClick={handleCardClick}
+                >
                     입장하기 <ChevronRight size={16} />
                 </Button>
             </div>
