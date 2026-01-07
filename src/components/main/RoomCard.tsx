@@ -4,12 +4,13 @@ import { Users, Lock, ChevronRight } from 'lucide-react';
 import Button from '../common/Button';
 
 interface RoomCardProps {
-    id: number;
-    region: string;
-    isOfficial: boolean;
+    roomId: number;
+    city: string;
+    district: string;
+    accessLevel: 'PUBLIC' | 'OFFICIALS_ONLY' | 'USER_ONLY';
     title: string;
     description: string;
-    participants: number;
+    currentUsers: number;
     createdAt: string;
 }
 
@@ -23,12 +24,13 @@ const TAG_COLORS = [
 ];
 
 const RoomCard: React.FC<RoomCardProps> = ({
-    id,
-    region,
-    isOfficial,
+    roomId,
+    city,
+    district,
+    accessLevel,
     title,
     description,
-    participants,
+    currentUsers,
     createdAt,
 }) => {
     const navigate = useNavigate();
@@ -46,7 +48,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
     const tagColor = getColorForRoom(title);
 
     const handleCardClick = () => {
-        navigate(`/room/${id}`);
+        navigate(`/room/${roomId}`);
     };
 
     return (
@@ -58,9 +60,9 @@ const RoomCard: React.FC<RoomCardProps> = ({
                     className="inline-flex px-3 py-1 rounded-lg text-xs font-medium"
                     style={{ backgroundColor: tagColor.bg, color: tagColor.text }}
                 >
-                    {region}
+                    {city} {district}
                 </span>
-                {isOfficial && (
+                {accessLevel === 'OFFICIALS_ONLY' && (
                     <span className="inline-flex items-center gap-1 px-3 py-1 bg-[#FEF3C7] text-[#D97706] border border-[#F59E0B] rounded-lg text-xs font-medium">
                         <Lock size={12} />
                         공무원 전용
@@ -79,7 +81,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 <div className="flex items-center gap-2 text-neutral-400 text-xs">
                     <div className="flex items-center gap-1">
                         <Users size={14} />
-                        <span>{participants}명 참여 중</span>
+                        <span>{currentUsers}명 참여 중</span>
                     </div>
                     <span className="text-neutral-300">|</span>
                     <span>{createdAt}</span>
