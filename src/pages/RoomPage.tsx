@@ -1,5 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { useAuthStore } from '../store/authStore';
+import { useChat } from '../hooks/useChat';
+import { getMessagesByRoom } from '../api/message';
+import { joinRoom, getRoom, leaveRoom, deleteRoom } from '../api/room';
+import { isAxiosError } from 'axios';
 import {
     ReadOnlyNoticeModal,
     PermissionDeniedModal,
@@ -24,28 +30,78 @@ const RoomPage: React.FC = () => {
     // Context Menu State
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, name: string } | null>(null);
 
-    // Dummy Data for Room
-    const roomInfo = {
-        title: "부천역 소음문제 해결",
-        location: "부천시",
-        participantCount: 12
-    };
+    const { user } = useAuthStore();
+    const numericRoomId = parseInt(roomId || '0', 10);
 
-    // Dummy Messages
-    const dummyMessages = [
-        { id: 1, sender: "김시민", role: "leader", content: "안녕하세요! 부천역 소음 문제에 대해 구체적인 해결 방안을 토의해보고자 합니다. 제안서 초안을 확인해주세요.", time: "오후 2:00", isMe: false },
-        { id: 2, sender: "이철수", role: "user", content: "특히 밤늦은 시간에 들리는 환기구 소음이 너무 큽니다.", time: "오후 2:05", isMe: false },
-        { id: 3, sender: "부천시 민원팀", role: "official", content: "해당 구역의 소음 데시벨 측정을 요청해둔 상태입니다. 조만간 결과가 나올 예정입니다.", time: "오후 2:10", isMe: false },
-        { id: 4, sender: "나 (사용자)", role: "user", content: "전문적인 측정이 이루어진다니 다행이네요. 결과가 나오면 공유 부탁드립니다.", time: "오후 2:15", isMe: true },
-        { id: 5, sender: "박영희", role: "user", content: "방음벽 설치도 고려해볼 수 있을까요? 부천역 근처 연립주택들이 특히 피해가 심합니다.", time: "오후 2:18", isMe: false },
-        { id: 6, sender: "김시민", role: "leader", content: "방음벽은 예산 문제도 있고 도시 미관상 제약이 있을 수 있어서 신중하게 접근해야 할 것 같아요.", time: "오후 2:20", isMe: false },
-        { id: 7, sender: "나 (사용자)", role: "user", content: "제안서에 방음벽 외에도 저소음 포장이나 환기구 위치 변경 등의 대안도 담아보았습니다.", time: "오후 2:22", isMe: true },
-        { id: 8, sender: "이철수", role: "user", content: "환기구 위치 변경이 가장 현실적일 것 같습니다. 주거 지역과 멀어지는 방향으로요.", time: "오후 2:25", isMe: false },
-    ];
+    const { data: roomData, isLoading: isRoomLoading, error: roomError } = useQuery({
+        queryKey: ['room', numericRoomId],
+        queryFn: async () => {
+            try {
+                return await joinRoom(numericRoomId);
+            } catch (error) {
+                if (isAxiosError(error) && error.response?.status === 409) {
+                    // Already joined, fetch room info directly
+                    return await getRoom(numericRoomId);
+                }
+                throw error;
+            }
+        },
+        retry: 0,
+    });
+
+    const roomInfo = roomData?.data;
+
+    const { messages: liveMessages, isConnected, sendMessage } = useChat({
+        roomId: numericRoomId,
+        userId: user?.userId || 0
+    });
+
+    const { data: historyData } = useQuery({
+        queryKey: ['messages', numericRoomId],
+        queryFn: () => getMessagesByRoom(numericRoomId, undefined, 50),
+    });
+
+    const historyMessages = historyData?.data?.messages || [];
+    // API returns latest first, so reverse it for display
+    const reversedHistory = [...historyMessages].reverse();
+    const allMessages = [...reversedHistory, ...liveMessages];
+
+    const [chatInput, setChatInput] = useState('');
+    const chatEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [allMessages]);
 
     const handleConfirmAction = () => {
         console.log(`Action confirmed for ${activeModal}`);
         setActiveModal(null);
+    };
+
+    const handleLeaveRoomConfirm = async () => {
+        try {
+            await leaveRoom(numericRoomId);
+            alert('방에서 나갔습니다.');
+            navigate('/');
+        } catch (error) {
+            console.error('Failed to leave room:', error);
+            alert('방 나가기에 실패했습니다.');
+        } finally {
+            setActiveModal(null);
+        }
+    };
+
+    const handleDeleteRoomConfirm = async () => {
+        try {
+            await deleteRoom(numericRoomId);
+            alert('방이 삭제되었습니다.');
+            navigate('/');
+        } catch (error) {
+            console.error('Failed to delete room:', error);
+            alert('방 삭제에 실패했습니다.');
+        } finally {
+            setActiveModal(null);
+        }
     };
 
     const handleContextMenu = (e: React.MouseEvent, name: string) => {
@@ -70,6 +126,19 @@ const RoomPage: React.FC = () => {
         }
     };
 
+    if (isRoomLoading) {
+        return <div className="flex bg-white items-center justify-center h-screen">로딩 중...</div>;
+    }
+
+    if (roomError || !roomInfo) {
+        return (
+            <div className="flex flex-col bg-white items-center justify-center h-screen">
+                <p className="text-xl mb-4">방 정보를 불러올 수 없거나 존재하지 않는 방입니다.</p>
+                <button onClick={() => navigate('/')} className="px-6 py-2 bg-primary-500 text-white rounded-xl">홈으로 가기</button>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col h-screen bg-white overflow-hidden">
             {/* 1. Header */}
@@ -86,9 +155,9 @@ const RoomPage: React.FC = () => {
                 <div className="ml-2 flex items-center gap-2 overflow-hidden">
                     <h1 className="text-lg font-bold truncate">{roomInfo.title}</h1>
                     <span className="text-neutral-300">·</span>
-                    <span className="text-neutral-500 shrink-0">{roomInfo.location}</span>
+                    <span className="text-neutral-500 shrink-0">{roomInfo.city} {roomInfo.district}</span>
                     <span className="text-neutral-300">·</span>
-                    <span className="text-neutral-500 shrink-0">{roomInfo.participantCount}명 참여중</span>
+                    <span className="text-neutral-500 shrink-0">{roomInfo.currentUsers}명 참여중</span>
                 </div>
 
                 <button
@@ -106,29 +175,46 @@ const RoomPage: React.FC = () => {
                 <main className={`flex flex-col transition-all duration-300 ease-in-out ${isProposalOpen ? 'w-[65%]' : 'w-full'} bg-[#FAFAFA]`}>
                     {/* Chat Messages */}
                     <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-                        {dummyMessages.map((msg) => (
-                            <div key={msg.id} className={`flex items-start gap-3 ${msg.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                                {!msg.isMe && (
-                                    <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-bold shadow-sm ${getProfileStyles(msg.role)}`}>
-                                        {msg.sender[0]}
+                        {allMessages.map((msg: any, index: number) => {
+                            const isMe = msg.userName === user?.nickname || msg.userId === user?.userId;
+                            const role = msg.role || 'user'; // Assuming role is provided, else fallback to user
+                            const isNotice = msg.type === 'JOIN' || msg.type === 'LEAVE';
+
+                            if (isNotice) {
+                                return (
+                                    <div key={msg.id || index} className="flex justify-center my-4">
+                                        <span className="bg-neutral-200 text-neutral-600 text-xs px-3 py-1 rounded-full">
+                                            {msg.content}
+                                        </span>
                                     </div>
-                                )}
-                                <div className={`max-w-[70%] flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-semibold text-neutral-800 text-sm">{msg.sender}</span>
-                                        {msg.role === 'leader' && <span className="bg-[#F5D0FE] text-[#A21CAF] text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">방장</span>}
-                                        {msg.role === 'official' && <span className="bg-neutral-800 text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">OFFICIAL</span>}
+                                );
+                            }
+
+                            return (
+                                <div key={msg.id || index} className={`flex items-start gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                                    {!isMe && (
+                                        <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-bold shadow-sm ${getProfileStyles(role)}`}>
+                                            {msg.userName?.[0] || 'U'}
+                                        </div>
+                                    )}
+                                    <div className={`max-w-[70%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="font-semibold text-neutral-800 text-sm">{msg.userName}</span>
+                                        </div>
+                                        <div className={`p-4 rounded-[16px] shadow-sm text-sm leading-relaxed whitespace-pre-wrap ${isMe
+                                            ? 'bg-[#F5D0FE] text-[#1C1917] rounded-tr-none'
+                                            : 'bg-white border border-[#E7E5E4] text-neutral-700 rounded-tl-none'
+                                            }`}>
+                                            {msg.content}
+                                        </div>
+                                        <div className="mt-1 text-xs text-neutral-400">
+                                            {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </div>
                                     </div>
-                                    <div className={`p-4 rounded-[16px] shadow-sm text-sm leading-relaxed ${msg.isMe
-                                        ? 'bg-[#F5D0FE] text-[#1C1917] rounded-tr-none'
-                                        : 'bg-white border border-[#E7E5E4] text-neutral-700 rounded-tl-none'
-                                        }`}>
-                                        {msg.content}
-                                    </div>
-                                    <div className="mt-1 text-xs text-neutral-400">{msg.time}</div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
+                        <div ref={chatEndRef} />
                     </div>
 
                     {/* Chat Input */}
@@ -137,15 +223,30 @@ const RoomPage: React.FC = () => {
                             <textarea
                                 rows={1}
                                 className="flex-1 bg-neutral-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary-400 resize-none min-h-[44px] max-h-32"
-                                placeholder="메시지를 입력하세요 (Shift + Enter: 줄바꿈)"
+                                placeholder={isConnected ? "메시지를 입력하세요 (Shift + Enter: 줄바꿈)" : "채팅 서버에 연결 중..."}
+                                value={chatInput}
+                                onChange={(e) => setChatInput(e.target.value)}
+                                disabled={!isConnected}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault();
-                                        // Send logic here
+                                        if (chatInput.trim()) {
+                                            sendMessage(chatInput);
+                                            setChatInput('');
+                                        }
                                     }
                                 }}
                             />
-                            <button className="bg-primary-500 text-white w-11 h-11 rounded-xl flex items-center justify-center shrink-0 hover:bg-primary-600 transition-colors shadow-sm shadow-primary-200">
+                            <button
+                                onClick={() => {
+                                    if (chatInput.trim()) {
+                                        sendMessage(chatInput);
+                                        setChatInput('');
+                                    }
+                                }}
+                                disabled={!isConnected || !chatInput.trim()}
+                                className="bg-primary-500 text-white w-11 h-11 rounded-xl flex items-center justify-center shrink-0 hover:bg-primary-600 transition-colors shadow-sm shadow-primary-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
                                 </svg>
@@ -241,21 +342,20 @@ const RoomPage: React.FC = () => {
 
                         <div className="flex-1 overflow-y-auto">
                             <div className="p-6">
-                                <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-4">참여자 목록 (12명)</h3>
+                                <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-4">참여자 목록 ({roomInfo.currentUsers}명)</h3>
                                 <div className="space-y-4">
-                                    {[1, 2, 3, 4, 5].map(i => {
-                                        const name = `참여자 ${i}`;
+                                    {roomInfo.members?.map(member => {
                                         return (
                                             <div
-                                                key={i}
+                                                key={member.userId}
                                                 className="flex items-center gap-3 p-1 rounded-lg hover:bg-neutral-50 transition-colors cursor-context-menu"
-                                                onContextMenu={(e) => i !== 1 && handleContextMenu(e, name)}
+                                                onContextMenu={(e) => member.userId !== user?.userId && handleContextMenu(e, member.nickname)}
                                             >
-                                                <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-xs font-bold text-neutral-400">
-                                                    {i === 1 ? '방' : '참'}
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${getProfileStyles(member.role)}`}>
+                                                    {member.role === 'LEADER' ? '방' : '참'}
                                                 </div>
-                                                <span className="text-sm font-medium text-neutral-700">{name}</span>
-                                                {i === 1 && <span className="text-[10px] text-primary-500 font-bold ml-auto border border-primary-100 px-1 rounded">방장</span>}
+                                                <span className="text-sm font-medium text-neutral-700">{member.nickname}</span>
+                                                {member.role === 'LEADER' && <span className="text-[10px] text-primary-500 font-bold ml-auto border border-primary-100 px-1 rounded">방장</span>}
                                             </div>
                                         );
                                     })}
@@ -321,12 +421,12 @@ const RoomPage: React.FC = () => {
             <LeaveRoomModal
                 isOpen={activeModal === 'leaveRoom'}
                 onClose={() => setActiveModal(null)}
-                onConfirm={handleConfirmAction}
+                onConfirm={handleLeaveRoomConfirm}
             />
             <DeleteRoomModal
                 isOpen={activeModal === 'deleteRoom'}
                 onClose={() => setActiveModal(null)}
-                onConfirm={handleConfirmAction}
+                onConfirm={handleDeleteRoomConfirm}
             />
             <SubmitProposalModal
                 isOpen={activeModal === 'submitProposal'}

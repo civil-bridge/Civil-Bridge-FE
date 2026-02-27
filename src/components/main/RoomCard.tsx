@@ -7,9 +7,9 @@ interface RoomCardProps {
     roomId: number;
     city: string;
     district: string;
-    accessLevel: 'PUBLIC' | 'OFFICIALS_ONLY' | 'USER_ONLY';
+    accessLevel: string;
     title: string;
-    description: string;
+    description?: string;
     currentUsers: number;
     createdAt: string;
 }
