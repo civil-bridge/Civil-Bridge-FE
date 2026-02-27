@@ -22,6 +22,7 @@ const RoomPage: React.FC = () => {
     // UI States
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isProposalOpen, setIsProposalOpen] = useState(false);
+    const [isShowAllMembers, setIsShowAllMembers] = useState(false);
 
     // Modal States
     const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -347,7 +348,7 @@ const RoomPage: React.FC = () => {
                             <div className="p-6">
                                 <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-4">참여자 목록 ({roomInfo.currentUsers}명)</h3>
                                 <div className="space-y-4">
-                                    {roomInfo.members?.map(member => {
+                                    {(isShowAllMembers ? roomInfo.members : roomInfo.members?.slice(0, 10))?.map(member => {
                                         return (
                                             <div
                                                 key={member.userId}
@@ -362,9 +363,14 @@ const RoomPage: React.FC = () => {
                                             </div>
                                         );
                                     })}
-                                    <button className="w-full text-center text-xs text-neutral-400 hover:text-neutral-600 py-2">
-                                        참여자 전체 보기
-                                    </button>
+                                    {roomInfo.members && roomInfo.members.length > 10 && (
+                                        <button
+                                            onClick={() => setIsShowAllMembers(!isShowAllMembers)}
+                                            className="w-full text-center text-xs text-neutral-400 hover:text-neutral-600 py-2"
+                                        >
+                                            {isShowAllMembers ? '접기' : `참여자 전체보기 (${roomInfo.members.length - 10}명 더보기)`}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
