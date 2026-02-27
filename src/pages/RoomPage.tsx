@@ -176,7 +176,10 @@ const RoomPage: React.FC = () => {
                     {/* Chat Messages */}
                     <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                         {allMessages.map((msg: any, index: number) => {
-                            const isMe = msg.userName === user?.nickname || msg.userId === user?.userId;
+                            // 백엔드 명세상 과거 메시지(API)에는 userId가 없고 userName만 있음 (STOMP에는 userId 있음)
+                            const isMe =
+                                (msg.userId && msg.userId === user?.userId) ||
+                                (!msg.userId && msg.userName?.trim() === user?.nickname?.trim());
                             const role = msg.role || 'user'; // Assuming role is provided, else fallback to user
                             const isNotice = msg.type === 'JOIN' || msg.type === 'LEAVE';
 

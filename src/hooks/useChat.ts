@@ -29,6 +29,7 @@ export const useChat = ({ roomId, userId }: UseChatProps) => {
                 // 구독
                 client.subscribe(`/topic/room.${roomId}`, (message) => {
                     const receivedMessage = JSON.parse(message.body);
+                    console.log('STOMP Received Format:', receivedMessage);
                     setMessages((prev) => [...prev, receivedMessage]);
                 });
 
@@ -56,10 +57,7 @@ export const useChat = ({ roomId, userId }: UseChatProps) => {
         clientRef.current = client;
 
         return () => {
-            if (client.connected) {
-                // 퇴장 처리는 서버에서 감지하거나 직접 처리
-                client.deactivate();
-            }
+            client.deactivate();
         };
     }, [roomId, userId]);
 
