@@ -5,7 +5,9 @@ import { useAuthStore } from '../store/authStore';
 import { useChat } from '../hooks/useChat';
 import { getMessagesByRoom } from '../api/message';
 import { joinRoom, getRoom, leaveRoom, deleteRoom } from '../api/room';
+import { getProposalsByRoom, createProposal, updateProposal, startEditing, finishEditing, getLockStatus } from '../api/proposal';
 import { isAxiosError } from 'axios';
+import type { ProposalResponse, LockStatusResponse } from '../types/proposal';
 import {
     ReadOnlyNoticeModal,
     PermissionDeniedModal,
@@ -31,6 +33,18 @@ const RoomPage: React.FC = () => {
     // Context Menu State
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, name: string } | null>(null);
 
+    // Proposal States
+    const [proposals, setProposals] = useState<ProposalResponse[]>([]);
+    const [locks, setLocks] = useState<Record<number, LockStatusResponse>>({});
+
+    // Editor States
+    const [proposalId, setProposalId] = useState<number | null>(null);
+    const [proposalTitle, setProposalTitle] = useState('');
+    const [proposalParagraph, setProposalParagraph] = useState('');
+    const [proposalSolution, setProposalSolution] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const [isCreatingProposal, setIsCreatingProposal] = useState(false);
+
     const { user } = useAuthStore();
     const numericRoomId = parseInt(roomId || '0', 10);
 
@@ -51,6 +65,112 @@ const RoomPage: React.FC = () => {
     });
 
     const roomInfo = roomData?.data;
+
+    const fetchProposalsAndLocks = async () => {
+        if (!numericRoomId) return;
+        try {
+            const res = await getProposalsByRoom(numericRoomId);
+            const data = res.data || [];
+            setProposals(data);
+
+            // Fetch locks
+            const lockPromises = data.map(p => getLockStatus(p.id).catch(() => null));
+            const lockResults = await Promise.all(lockPromises);
+
+            const newLocks: Record<number, LockStatusResponse> = {};
+            data.forEach((p, index) => {
+                const lockRes = lockResults[index];
+                if (lockRes && lockRes.data) {
+                    newLocks[p.id] = lockRes.data;
+                }
+            });
+            setLocks(newLocks);
+        } catch (err) {
+            console.error('Failed to fetch proposals:', err);
+        }
+    };
+
+    useEffect(() => {
+        if (isMenuOpen) {
+            fetchProposalsAndLocks();
+        }
+    }, [isMenuOpen, numericRoomId]);
+
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            if (proposalId && isProposalOpen) {
+                finishEditing(proposalId).catch(console.error);
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            if (proposalId && isProposalOpen) {
+                finishEditing(proposalId).catch(console.error);
+            }
+        };
+    }, [proposalId, isProposalOpen]);
+
+    const handleCloseProposalPanel = async () => {
+        setIsProposalOpen(false);
+        if (proposalId) {
+            try {
+                // 패널을 닫을 때 자동으로 임시저장 (제목이 있는 경우만)
+                if (proposalTitle?.trim()) {
+                    await updateProposal(proposalId, {
+                        title: proposalTitle,
+                        paragraph: proposalParagraph,
+                        solution: proposalSolution
+                    }).catch(console.error);
+                }
+                await finishEditing(proposalId);
+            } catch (err) {
+                console.error("Failed to release lock:", err);
+            }
+        }
+    };
+
+    const handleTempSave = async () => {
+        setIsSaving(true);
+        try {
+            if (proposalId) {
+                // Update (Already holds the lock from opening it)
+                try {
+                    await updateProposal(proposalId, {
+                        title: proposalTitle,
+                        paragraph: proposalParagraph,
+                        solution: proposalSolution
+                    });
+                    // 백엔드가 락을 풀릴 경우를 대비해 (백엔드 수정 전까지의 호환성 유지)
+                    await startEditing(proposalId).catch(() => { });
+                    alert('임시저장되었습니다.');
+                } catch (error: any) {
+                    if (isAxiosError(error) && error.response?.status === 403) {
+                        // 락 재획득 시도 (로직 안정화용 백업)
+                        console.log('Lock lost. Re-acquiring lock and retrying save...');
+                        await startEditing(proposalId);
+                        await updateProposal(proposalId, {
+                            title: proposalTitle,
+                            paragraph: proposalParagraph,
+                            solution: proposalSolution
+                        });
+                        await startEditing(proposalId).catch(() => { });
+                        alert('임시저장되었습니다.');
+                    } else {
+                        throw error;
+                    }
+                }
+            } else {
+                alert('잘못된 접근입니다. 제안서를 먼저 생성해주세요.');
+            }
+        } catch (error) {
+            console.error('Failed to temp save proposal:', error);
+            alert('임시저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     const { messages: liveMessages, isConnected, sendMessage } = useChat({
         roomId: numericRoomId,
@@ -259,16 +379,20 @@ const RoomPage: React.FC = () => {
                     </div>
                 </main>
 
-                {/* 4. Proposal Panel */}
+                {/* 4. Proposal Panel (Edit View Only) */}
                 <aside
-                    className={`fixed top-16 right-0 bottom-0 z-20 w-[35%] bg-white border-l border-neutral-200 transform transition-transform duration-300 ease-in-out shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.1)] ${isProposalOpen ? 'translate-x-0' : 'translate-x-full'}`}
+                    className={`fixed top-16 right-0 bottom-0 z-20 w-[40%] bg-white border-l border-neutral-200 transform transition-transform duration-300 ease-in-out shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.1)] ${isProposalOpen ? 'translate-x-0' : 'translate-x-full'}`}
                 >
-                    <div className="flex flex-col h-full">
-                        <div className="h-14 border-b border-neutral-100 flex items-center justify-between px-6 shrink-0">
-                            <h2 className="font-bold text-neutral-800">제안서</h2>
+                    <div className="flex flex-col h-full relative">
+                        <div className="h-14 border-b border-neutral-100 flex items-center justify-between px-6 shrink-0 bg-white">
+                            <div className="flex items-center gap-3">
+                                <h2 className="font-bold text-neutral-800">
+                                    {proposalId ? '제안서 수정' : '새 제안서 작성'}
+                                </h2>
+                            </div>
                             <button
-                                onClick={() => setIsProposalOpen(false)}
-                                className="p-2 hover:bg-neutral-100 rounded-full transition-colors text-neutral-400"
+                                onClick={handleCloseProposalPanel}
+                                className="p-2 -mr-2 hover:bg-neutral-100 rounded-full transition-colors text-neutral-400"
                             >
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M18 6 6 18" /><path d="m6 6 12 12" />
@@ -282,7 +406,8 @@ const RoomPage: React.FC = () => {
                                     type="text"
                                     className="w-full border-b border-neutral-200 py-2 text-lg font-semibold focus:outline-none focus:border-primary-500 transition-colors"
                                     placeholder="제목을 입력하세요"
-                                    defaultValue={roomInfo.title}
+                                    value={proposalTitle}
+                                    onChange={(e) => setProposalTitle(e.target.value)}
                                 />
                             </div>
                             <div>
@@ -290,6 +415,8 @@ const RoomPage: React.FC = () => {
                                 <textarea
                                     className="w-full bg-neutral-50 rounded-xl p-4 text-sm min-h-[120px] border border-transparent focus:bg-white focus:border-neutral-200 focus:outline-none transition-all"
                                     placeholder="현재 발생하고 있는 문제를 상세히 적어주세요."
+                                    value={proposalParagraph}
+                                    onChange={(e) => setProposalParagraph(e.target.value)}
                                 />
                             </div>
                             <div>
@@ -297,6 +424,8 @@ const RoomPage: React.FC = () => {
                                 <textarea
                                     className="w-full bg-neutral-50 rounded-xl p-4 text-sm min-h-[120px] border border-transparent focus:bg-white focus:border-neutral-200 focus:outline-none transition-all"
                                     placeholder="해결을 위한 구체적인 솔루션을 제안해주세요."
+                                    value={proposalSolution}
+                                    onChange={(e) => setProposalSolution(e.target.value)}
                                 />
                             </div>
                             <div>
@@ -309,9 +438,13 @@ const RoomPage: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <div className="p-6 border-t border-neutral-100 flex gap-3">
-                            <button className="flex-1 py-3 border border-neutral-200 rounded-xl text-sm font-semibold text-neutral-600 hover:bg-neutral-50 transition-colors">
-                                임시저장
+                        <div className="p-6 border-t border-neutral-100 flex gap-3 shrink-0 bg-white">
+                            <button
+                                onClick={handleTempSave}
+                                disabled={isSaving}
+                                className="flex-1 py-3 border border-neutral-200 rounded-xl text-sm font-semibold text-neutral-600 hover:bg-neutral-50 transition-colors disabled:opacity-50"
+                            >
+                                {isSaving ? '저장 중...' : '임시저장'}
                             </button>
                             <button
                                 onClick={() => setActiveModal('submitProposal')}
@@ -375,36 +508,154 @@ const RoomPage: React.FC = () => {
                             </div>
 
                             <div className="mt-4 border-t border-neutral-100">
-                                <div className="p-2">
-                                    <button
-                                        onClick={() => {
-                                            setIsProposalOpen(true);
-                                            setIsMenuOpen(false);
-                                        }}
-                                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-neutral-50 transition-colors text-neutral-700"
-                                    >
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" />
-                                        </svg>
-                                        <span className="text-sm font-medium">제안서 열기</span>
-                                    </button>
+                                <div className="p-4">
+                                    <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-4">제안서 목록</h3>
 
                                     <button
-                                        onClick={() => setActiveModal('leaveRoom')}
-                                        className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-neutral-50 transition-colors text-neutral-700"
+                                        onClick={async () => {
+                                            if (isCreatingProposal) return;
+                                            setIsCreatingProposal(true);
+                                            try {
+                                                if (proposalId && isProposalOpen) {
+                                                    try {
+                                                        if (proposalTitle?.trim()) {
+                                                            await updateProposal(proposalId, {
+                                                                title: proposalTitle,
+                                                                paragraph: proposalParagraph,
+                                                                solution: proposalSolution
+                                                            }).catch(console.error);
+                                                        }
+                                                        await finishEditing(proposalId);
+                                                    } catch (err) { console.error(err); }
+                                                }
+
+                                                // 대안 A: 명시적 생성 (즉각 서버 통신)
+                                                const res = await createProposal({
+                                                    roomId: numericRoomId,
+                                                    title: '새 제안서',
+                                                    paragraph: '',
+                                                    solution: ''
+                                                });
+
+                                                const newId = res.data.id;
+                                                // 백엔드가 생성 시 락을 자동 부여하도록 수정되기 전까지 임시로 startEditing 호출
+                                                await startEditing(newId).catch(console.error);
+
+                                                setProposalId(newId);
+                                                setProposalTitle('새 제안서');
+                                                setProposalParagraph('');
+                                                setProposalSolution('');
+
+                                                // 상태 갱신 (새 제안서가 목록에 바로 보이도록)
+                                                await fetchProposalsAndLocks();
+
+                                                setIsProposalOpen(true);
+                                                setIsMenuOpen(false);
+                                            } catch (error) {
+                                                console.error('Failed to create new proposal:', error);
+                                                alert('제안서 생성에 실패했습니다.');
+                                            } finally {
+                                                setIsCreatingProposal(false);
+                                            }
+                                        }}
+                                        disabled={isCreatingProposal}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 mb-4 rounded-xl border border-primary-200 bg-primary-50 text-primary-600 hover:bg-primary-100 transition-colors disabled:opacity-50"
                                     >
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M16 17l5-5-5-5" /><path d="M21 12H9" /><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                                        </svg>
-                                        <span className="text-sm font-medium">방 나가기</span>
+                                        {isCreatingProposal ? (
+                                            <span className="text-sm font-bold">생성 중...</span>
+                                        ) : (
+                                            <>
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M5 12h14" /><path d="M12 5v14" />
+                                                </svg>
+                                                <span className="text-sm font-bold">새 제안서 생성</span>
+                                            </>
+                                        )}
                                     </button>
+
+                                    <div className="space-y-3">
+                                        {proposals.map(p => {
+                                            const lock = locks[p.id];
+                                            const isLocked = lock?.isLocked;
+                                            const amIOwner = isLocked && lock.lockOwnerId === user?.userId;
+
+                                            return (
+                                                <div
+                                                    key={p.id}
+                                                    className={`border border-neutral-200 rounded-xl p-3 hover:border-neutral-300 transition-colors cursor-pointer ${isLocked && !amIOwner ? 'opacity-70 bg-neutral-50' : 'bg-white'}`}
+                                                    onClick={async () => {
+                                                        if (isLocked && !amIOwner) {
+                                                            alert(`${lock.lockOwnerNickname}님이 작업 중입니다.`);
+                                                            return;
+                                                        }
+
+                                                        if (proposalId && proposalId !== p.id && isProposalOpen) {
+                                                            try {
+                                                                if (proposalTitle?.trim()) {
+                                                                    await updateProposal(proposalId, {
+                                                                        title: proposalTitle,
+                                                                        paragraph: proposalParagraph,
+                                                                        solution: proposalSolution
+                                                                    }).catch(console.error);
+                                                                }
+                                                                await finishEditing(proposalId);
+                                                            } catch (err) { console.error(err); }
+                                                        }
+
+                                                        try {
+                                                            await startEditing(p.id);
+                                                        } catch (err) {
+                                                            alert('해당 제안서 편집을 시작할 수 없습니다. (다른 사용자가 작업 중일 수 있습니다.)');
+                                                            return;
+                                                        }
+
+                                                        setProposalId(p.id);
+                                                        setProposalTitle(p.title || '');
+                                                        setProposalParagraph(p.contents?.paragraph || '');
+                                                        setProposalSolution(p.contents?.solution || '');
+                                                        setIsProposalOpen(true);
+                                                        setIsMenuOpen(false);
+                                                    }}
+                                                >
+                                                    <div className="flex flex-col gap-1">
+                                                        <h4 className="font-bold text-sm text-neutral-800 truncate">{p.title || '제목 없음'}</h4>
+                                                        <div className="flex items-center gap-2 text-[10px] sm:text-xs">
+                                                            <span className={`px-1.5 py-0.5 rounded-full border ${p.status === 'SUBMITTABLE' ? 'border-primary-200 text-primary-600 bg-primary-50' : 'border-neutral-200 text-neutral-500 bg-neutral-50'}`}>
+                                                                {p.status === 'SUBMITTABLE' ? '작성중' : p.status}
+                                                            </span>
+                                                            {isLocked && (
+                                                                <span className={`font-bold ${amIOwner ? 'text-primary-600' : 'text-orange-600'}`}>
+                                                                    {amIOwner ? '(내가 작업중)' : `(${lock.lockOwnerNickname} 작업중)`}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        {proposals.length === 0 && (
+                                            <div className="text-center py-6 text-xs text-neutral-400">
+                                                생성된 제안서가 없습니다.
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="mt-4 border-t border-neutral-100 p-2">
+                            <div className="mt-auto border-t border-neutral-100 p-2">
+                                <button
+                                    onClick={() => setActiveModal('leaveRoom')}
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-neutral-50 transition-colors text-neutral-700"
+                                >
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M16 17l5-5-5-5" /><path d="M21 12H9" /><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                                    </svg>
+                                    <span className="text-sm font-medium">방 나가기</span>
+                                </button>
+
                                 <button
                                     onClick={() => setActiveModal('deleteRoom')}
-                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-neutral-50 transition-colors text-error"
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-neutral-50 transition-colors text-error mt-1"
                                 >
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />
