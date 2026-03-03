@@ -53,7 +53,7 @@ export interface SubmitProposalReq {
 }
 
 export interface LockStatusResponse {
-    isLocked: boolean;
+    locked: boolean;
     lockOwnerId?: number;
     lockOwnerNickname?: string;
 }
