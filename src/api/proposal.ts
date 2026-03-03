@@ -4,8 +4,10 @@ import type {
     ProposalResponse,
     ProposalCreateReq,
     ProposalUpdateReq,
+    SubmitProposalReq,
     LockStatusResponse,
-    ConsentersResponse
+    ConsentersResponse,
+    ConsentResponse
 } from '../types/proposal';
 
 export const createProposal = async (data: ProposalCreateReq): Promise<ApiResponse<ProposalResponse>> => {
@@ -36,15 +38,15 @@ export const finishEditing = async (proposalId: number): Promise<ApiResponse<nul
     return api.post(`/api/proposals/${proposalId}/finish-editing`);
 };
 
-export const startVoting = async (proposalId: number): Promise<ApiResponse<ProposalResponse>> => {
-    return api.post(`/api/proposals/${proposalId}/start-voting`);
+export const startVoting = async (proposalId: number, data: SubmitProposalReq): Promise<ApiResponse<ProposalResponse>> => {
+    return api.post(`/api/proposals/${proposalId}/start-voting`, data);
 };
 
 export const endVoting = async (proposalId: number): Promise<ApiResponse<ProposalResponse>> => {
     return api.post(`/api/proposals/${proposalId}/end-voting`);
 };
 
-export const consentProposal = async (proposalId: number): Promise<ApiResponse<null>> => {
+export const consentProposal = async (proposalId: number): Promise<ApiResponse<ConsentResponse>> => {
     return api.post(`/api/proposals/${proposalId}/consents`);
 };
 

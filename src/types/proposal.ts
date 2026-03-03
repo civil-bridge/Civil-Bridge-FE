@@ -42,6 +42,16 @@ export interface ProposalUpdateReq {
     expectedEffect?: string;
 }
 
+export interface SubmitProposalReq {
+    title: string;
+    paragraph: string;
+    image?: string;
+    solution?: string;
+    expectedEffect?: string;
+    minAgreements: number;
+    deadline: string;
+}
+
 export interface LockStatusResponse {
     isLocked: boolean;
     lockOwnerId?: number;
@@ -51,4 +61,8 @@ export interface LockStatusResponse {
 export interface ConsentersResponse {
     totalConsents: number;
     consenters: Consenter[];
+}
+
+export interface ConsentResponse {
+    totalConsents: number;
 }

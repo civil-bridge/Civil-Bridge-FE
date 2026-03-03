@@ -1,6 +1,6 @@
 # Civil Bridge API 명세서
 
-> **버전**: 2026-02-25 기준 실제 구현된 엔드포인트 기준
+> **버전**: 2026-03-02 기준 실제 구현된 엔드포인트 기준
 > **Base URL**: `http://localhost:8080` (로컬), `https://api.civil-bridge.com` (운영)
 > **API 문서(Swagger)**: `http://localhost:8080/swagger-ui.html`
 
@@ -331,7 +331,14 @@ HTTP 201 Created
     "district": "원미구",
     "accessLevel": "PUBLIC",
     "currentUsers": 1,
-    "memberNicknames": ["길동이"],
+    "members": [
+      {
+        "userId": 1,
+        "nickname": "길동이",
+        "role": "LEADER",
+        "profileImageUrl": null
+      }
+    ],
     "joinedAt": "2026-02-25T14:30:00"
   }
 }
@@ -348,7 +355,11 @@ HTTP 201 Created
 | `district` | `string` | 구/동 |
 | `accessLevel` | `string` | 접근 범위 |
 | `currentUsers` | `number` | 현재 참여 인원 수 |
-| `memberNicknames` | `string[]` | 참여 중인 멤버 닉네임 목록 |
+| `members` | `object[]` | 참여 중인 멤버 정보 목록 |
+| `members[].userId` | `number` | 사용자 ID |
+| `members[].nickname` | `string` | 닉네임 |
+| `members[].role` | `string` | 논의방 내 역할 (`LEADER`: 방장, `PARTICIPANT`: 일반 참여자) |
+| `members[].profileImageUrl` | `string \| null` | 프로필 이미지 URL |
 | `joinedAt` | `string` | 입장 시각 (ISO 8601) |
 
 ---
@@ -432,10 +443,58 @@ HTTP 201 Created
 
 ---
 
-### 4-4. 논의방 입장
+### 4-4. 논의방 상세 조회
+
+**`GET /api/discussion-rooms/{roomId}`**
+인증 필요
+
+논의방의 최신 상세 정보(참여자 목록, 방 제목 등)를 조회합니다. 방에 참여하지 않은 상태에서도 호출할 수 있습니다.
+
+#### Path Parameters
+
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| `roomId` | `number` | 조회할 논의방 ID |
+
+#### Request Body
+
+없음
+
+#### Response
+
+HTTP 200 OK
+
+```json
+{
+  "code": "SUCCESS",
+  "message": "논의방 상세 정보를 조회했습니다.",
+  "data": {
+    "roomId": 1,
+    "title": "부천시 BJ로 인한 지역 상권문제",
+    "description": "현재 부천시 BJ로 인한 상권 문제에 대해 논의합니다.",
+    "city": "부천시",
+    "district": "원미구",
+    "accessLevel": "PUBLIC",
+    "currentUsers": 16,
+    "members": [
+      { "userId": 1, "nickname": "길동이", "role": "LEADER", "profileImageUrl": null },
+      { "userId": 2, "nickname": "홍길동", "role": "PARTICIPANT", "profileImageUrl": null }
+    ],
+    "joinedAt": "2026-02-25T15:00:00"
+  }
+}
+```
+
+`data` 필드는 `4-1. 논의방 생성` 응답의 `data` 와 동일한 구조입니다 (`JoinRoomRes`).
+
+---
+
+### 4-5. 논의방 입장
 
 **`POST /api/discussion-rooms/{roomId}/join`**
 인증 필요
+
+논의방에 신규 입장합니다. **이미 참여 중인 경우에도 에러 없이 최신 방 정보를 반환합니다** (멱등성 보장).
 
 #### Path Parameters
 
@@ -449,7 +508,7 @@ HTTP 201 Created
 
 #### Response
 
-HTTP 201 Created
+HTTP 200 OK
 `data` 필드는 `4-1. 논의방 생성` 응답의 `data` 와 동일한 구조입니다 (`JoinRoomRes`).
 
 ```json
@@ -464,15 +523,20 @@ HTTP 201 Created
     "district": "원미구",
     "accessLevel": "PUBLIC",
     "currentUsers": 16,
-    "memberNicknames": ["길동이", "홍길동", "..."],
+    "members": [
+      { "userId": 1, "nickname": "길동이", "role": "LEADER", "profileImageUrl": null },
+      { "userId": 2, "nickname": "홍길동", "role": "PARTICIPANT", "profileImageUrl": null }
+    ],
     "joinedAt": "2026-02-25T15:00:00"
   }
 }
 ```
 
+> **참고**: 이미 참여 중인 사용자가 재호출하면 중복 가입 없이 동일한 200 OK 응답을 반환합니다.
+
 ---
 
-### 4-5. 논의방 나가기
+### 4-6. 논의방 나가기
 
 **`DELETE /api/discussion-rooms/{roomId}/leave`**
 인증 필요
@@ -513,23 +577,15 @@ HTTP 201 Created
 
 ```json
 {
-  "title": "수원시 영통구 교통 체증 해결 방안",
-  "paragraph": "경기도 수원시 영통구의 교통 체증 문제를 해결하기 위한 제안입니다.",
-  "image": "https://example.com/images/proposal.png",
-  "solution": "버스 전용 차로 확대 및 신호 체계 개선",
-  "expectedEffect": "출퇴근 시간 교통 체증 30% 감소 예상",
   "roomId": 1
 }
 ```
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
-| `title` | `string` | ❌ | 제안서 제목 |
-| `paragraph` | `string` | ❌ | 본문 내용 |
-| `image` | `string` | ❌ | 이미지 URL |
-| `solution` | `string` | ❌ | 해결 방안 |
-| `expectedEffect` | `string` | ❌ | 기대 효과 |
-| `roomId` | `number` | ❌ | 연결할 논의방 ID |
+| `roomId` | `number` | ✅ | 연결할 논의방 ID |
+
+> **참고**: 제안서는 빈 상태로 생성됩니다. 내용은 이후 `5-4. 제안서 수정`으로 저장하고, `5-8. 투표 시작` 시 최종 제출합니다.
 
 #### Response Body (`data`)
 
@@ -728,8 +784,8 @@ HTTP 201 Created
 **`POST /api/proposals/{proposalId}/start-voting`**
 인증 필요
 
-제안서에 대한 투표를 시작합니다. 기본 투표 기간은 3일입니다.
-호출 후 제안서 상태가 `VOTING`으로 변경됩니다.
+최종 내용 저장과 투표 상태 전환을 단일 요청으로 원자적으로 처리합니다. 기본 투표 기간은 3일입니다.
+호출 후 제안서 상태가 `VOTING`으로 변경됩니다. **제안서 작성자(authorId)만 호출할 수 있습니다.** 다른 사용자가 현재 편집 중인 경우(락 보유) 호출이 차단됩니다.
 
 #### Path Parameters
 
@@ -739,7 +795,23 @@ HTTP 201 Created
 
 #### Request Body
 
-없음
+```json
+{
+  "title": "수원시 영통구 교통 체증 해결 방안",
+  "paragraph": "경기도 수원시 영통구의 교통 체증 문제를 해결하기 위한 제안입니다.",
+  "image": "https://example.com/images/proposal.png",
+  "solution": "버스 전용 차로 확대 및 신호 체계 개선",
+  "expectedEffect": "출퇴근 시간 교통 체증 30% 감소 예상"
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `title` | `string` | ✅ | 제안서 제목 (5~100자) |
+| `paragraph` | `string` | ✅ | 본문 내용 |
+| `image` | `string` | ❌ | 이미지 URL |
+| `solution` | `string` | ❌ | 해결 방안 |
+| `expectedEffect` | `string` | ❌ | 기대 효과 |
 
 #### Response Body (`data`)
 
@@ -776,6 +848,7 @@ HTTP 201 Created
 인증 필요
 
 투표 중인 제안서에 동의합니다. 한 사용자는 한 제안서에 한 번만 동의할 수 있습니다.
+논의방 참여자라면 작성자 본인 포함 누구든 동의할 수 있습니다.
 
 #### Path Parameters
 
@@ -787,14 +860,21 @@ HTTP 201 Created
 
 없음
 
-#### Response Body
+#### Response Body (`data`)
 
 ```json
 {
   "code": "SUCCESS",
-  "message": "제안서 동의 완료"
+  "message": "제안서 동의 완료",
+  "data": {
+    "totalConsents": 6
+  }
 }
 ```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `totalConsents` | `number` | 투표 반영 후 최신 총 동의 인원수 |
 
 ---
 
@@ -913,14 +993,16 @@ HTTP 201 Created
   "messages": [
     {
       "id": 150,
+      "userId": 3,
       "content": "안녕하세요!",
-      "userName": "홍길동",
+      "userName": "길동이",
       "createdAt": "2026-02-25T14:30:00"
     },
     {
       "id": 149,
+      "userId": 7,
       "content": "반갑습니다.",
-      "userName": "김철수",
+      "userName": "철수짱",
       "createdAt": "2026-02-25T14:29:00"
     }
   ],
@@ -933,8 +1015,9 @@ HTTP 201 Created
 |------|------|------|
 | `messages` | `array` | 메시지 목록 (최신순) |
 | `messages[].id` | `number` | 메시지 ID (커서로 사용) |
+| `messages[].userId` | `number` | 발신자 사용자 ID (본인 메시지 식별용) |
 | `messages[].content` | `string` | 메시지 내용 |
-| `messages[].userName` | `string` | 발신자 이름 |
+| `messages[].userName` | `string` | 발신자 닉네임 |
 | `messages[].createdAt` | `string` | 전송 일시 (ISO 8601) |
 | `nextCursor` | `number \| null` | 다음 페이지 요청 시 사용할 커서. 다음 페이지 없으면 `null` |
 | `hasNext` | `boolean` | 다음 페이지 존재 여부 |
@@ -1086,3 +1169,10 @@ WebSocket URL: ws://localhost:8080/gyeonggi_partners-chat
 | `USER` | 일반 시민 (기본값) |
 | `OFFICIAL` | 경기도 정부 관계자 |
 | `ADMIN` | 시스템 관리자 |
+
+### MemberRole (논의방 내 역할)
+
+| 값 | 설명 |
+|----|------|
+| `LEADER` | 방장 (가장 먼저 참여한 멤버) |
+| `PARTICIPANT` | 일반 참여자 |

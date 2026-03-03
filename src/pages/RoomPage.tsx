@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { useChat } from '../hooks/useChat';
 import { getMessagesByRoom } from '../api/message';
 import { joinRoom, getRoom, leaveRoom, deleteRoom } from '../api/room';
-import { getProposalsByRoom, createProposal, updateProposal, startEditing, finishEditing, getLockStatus } from '../api/proposal';
+import { getProposalsByRoom, createProposal, updateProposal, startEditing, finishEditing, getLockStatus, startVoting } from '../api/proposal';
 import { isAxiosError } from 'axios';
 import type { ProposalResponse, LockStatusResponse } from '../types/proposal';
 import {
@@ -42,6 +42,7 @@ const RoomPage: React.FC = () => {
     const [proposalTitle, setProposalTitle] = useState('');
     const [proposalParagraph, setProposalParagraph] = useState('');
     const [proposalSolution, setProposalSolution] = useState('');
+    const [proposalConsentsCount, setProposalConsentsCount] = useState<number>(0);
     const [isSaving, setIsSaving] = useState(false);
     const [isCreatingProposal, setIsCreatingProposal] = useState(false);
 
@@ -99,6 +100,8 @@ const RoomPage: React.FC = () => {
     useEffect(() => {
         const handleBeforeUnload = () => {
             if (proposalId && isProposalOpen) {
+                const currentProposal = proposals.find(p => p.id === proposalId);
+                if (currentProposal && currentProposal.status === 'VOTING') return;
                 finishEditing(proposalId).catch(console.error);
             }
         };
@@ -107,26 +110,31 @@ const RoomPage: React.FC = () => {
         return () => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
             if (proposalId && isProposalOpen) {
+                const currentProposal = proposals.find(p => p.id === proposalId);
+                if (currentProposal && currentProposal.status === 'VOTING') return;
                 finishEditing(proposalId).catch(console.error);
             }
         };
-    }, [proposalId, isProposalOpen]);
+    }, [proposalId, isProposalOpen, proposals]);
 
     const handleCloseProposalPanel = async () => {
         setIsProposalOpen(false);
         if (proposalId) {
-            try {
-                // 패널을 닫을 때 자동으로 임시저장 (제목이 있는 경우만)
-                if (proposalTitle?.trim()) {
-                    await updateProposal(proposalId, {
-                        title: proposalTitle,
-                        paragraph: proposalParagraph,
-                        solution: proposalSolution
-                    }).catch(console.error);
+            const currentProposal = proposals.find(p => p.id === proposalId);
+            if (currentProposal?.status !== 'VOTING') {
+                try {
+                    // 패널을 닫을 때 자동으로 임시저장 (제목이 있는 경우만)
+                    if (proposalTitle?.trim()) {
+                        await updateProposal(proposalId, {
+                            title: proposalTitle,
+                            paragraph: proposalParagraph,
+                            solution: proposalSolution
+                        }).catch(console.error);
+                    }
+                    await finishEditing(proposalId);
+                } catch (err) {
+                    console.error("Failed to release lock:", err);
                 }
-                await finishEditing(proposalId);
-            } catch (err) {
-                console.error("Failed to release lock:", err);
             }
         }
     };
@@ -188,14 +196,48 @@ const RoomPage: React.FC = () => {
     const allMessages = [...reversedHistory, ...liveMessages];
 
     const [chatInput, setChatInput] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [allMessages]);
 
-    const handleConfirmAction = () => {
-        console.log(`Action confirmed for ${activeModal}`);
+    const handleConfirmAction = async (data?: any) => {
+        if (activeModal === 'submitProposal' && proposalId) {
+            if (isSubmitting) return;
+            setIsSubmitting(true);
+            try {
+                // Ensure data exists from the Modal
+                if (!data || !data.deadline || !data.minAgreements) {
+                    alert('유효하지 않은 투표 정보입니다.');
+                    setIsSubmitting(false);
+                    return;
+                }
+
+                // Start Voting directly (atomic operation)
+                await startVoting(proposalId, {
+                    title: proposalTitle,
+                    paragraph: proposalParagraph,
+                    solution: proposalSolution,
+                    minAgreements: data.minAgreements,
+                    deadline: data.deadline
+                });
+
+                alert('제안서가 최종 제출되어 투표가 진행됩니다.');
+
+                // Close panel or update state
+                await fetchProposalsAndLocks();
+
+            } catch (error) {
+                console.error('Failed to submit proposal for voting:', error);
+                alert('제안서 제출에 실패했습니다. (동시 편집으로 인한 충돌일 수 있습니다)');
+            } finally {
+                setIsSubmitting(false);
+            }
+        } else {
+            console.log(`Action confirmed for ${activeModal}`);
+        }
         setActiveModal(null);
     };
 
@@ -399,60 +441,135 @@ const RoomPage: React.FC = () => {
                                 </svg>
                             </button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                            <div>
-                                <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">제안 제목</label>
-                                <input
-                                    type="text"
-                                    className="w-full border-b border-neutral-200 py-2 text-lg font-semibold focus:outline-none focus:border-primary-500 transition-colors"
-                                    placeholder="제목을 입력하세요"
-                                    value={proposalTitle}
-                                    onChange={(e) => setProposalTitle(e.target.value)}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">현재 문제</label>
-                                <textarea
-                                    className="w-full bg-neutral-50 rounded-xl p-4 text-sm min-h-[120px] border border-transparent focus:bg-white focus:border-neutral-200 focus:outline-none transition-all"
-                                    placeholder="현재 발생하고 있는 문제를 상세히 적어주세요."
-                                    value={proposalParagraph}
-                                    onChange={(e) => setProposalParagraph(e.target.value)}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">제안 솔루션</label>
-                                <textarea
-                                    className="w-full bg-neutral-50 rounded-xl p-4 text-sm min-h-[120px] border border-transparent focus:bg-white focus:border-neutral-200 focus:outline-none transition-all"
-                                    placeholder="해결을 위한 구체적인 솔루션을 제안해주세요."
-                                    value={proposalSolution}
-                                    onChange={(e) => setProposalSolution(e.target.value)}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">첨부파일</label>
-                                <div className="border-2 border-dashed border-neutral-200 rounded-xl p-8 flex flex-col items-center justify-center gap-2 hover:bg-neutral-50 hover:border-neutral-300 transition-all cursor-pointer">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-400">
-                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
-                                    </svg>
-                                    <span className="text-sm text-neutral-500">파일을 클릭하거나 드래그하여 업로드</span>
+                        {/* 렌더링 분기: VOTING 상태면 투표 권장 읽기전용 UI, 아니면 편집 UI */}
+                        {proposals.find(p => p.id === proposalId)?.status === 'VOTING' ? (
+                            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                                <div className="bg-primary-50 text-primary-700 p-4 rounded-xl border border-primary-200">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+                                        </svg>
+                                        <h3 className="font-bold">투표가 진행 중인 제안서입니다</h3>
+                                    </div>
+                                    <p className="text-sm mb-4">목표 인원 수가 달성되면 제안이 통과됩니다. 기간 내에 꼭 투표해주세요!</p>
+
+                                    <div className="bg-white/50 rounded-lg p-3 border border-primary-100 flex items-center justify-between">
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-bold uppercase tracking-tight text-primary-600 mb-1">현재 투표 인원</span>
+                                            <span className="text-2xl font-black text-primary-800">{proposalConsentsCount}명 투표 완료</span>
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-xs font-bold uppercase tracking-tight text-primary-600 mb-1">투표 마감</span>
+                                            <span className="text-sm font-semibold text-primary-800">
+                                                {proposals.find(p => p.id === proposalId)?.deadline
+                                                    ? new Date(proposals.find(p => p.id === proposalId)!.deadline!).toLocaleDateString()
+                                                    : '미정'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">제안 제목</label>
+                                    <h3 className="text-lg font-semibold text-neutral-800 pb-2 border-b border-neutral-100">{proposalTitle || '제목 없음'}</h3>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">현재 문제</label>
+                                    <div className="bg-neutral-50 rounded-xl p-4 text-sm text-neutral-700 whitespace-pre-wrap min-h-[120px]">
+                                        {proposalParagraph || '내용 없음'}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">제안 솔루션</label>
+                                    <div className="bg-neutral-50 rounded-xl p-4 text-sm text-neutral-700 whitespace-pre-wrap min-h-[120px]">
+                                        {proposalSolution || '내용 없음'}
+                                    </div>
+                                </div>
+
+                                <div className="mt-8">
+                                    <button
+                                        className="w-full py-4 bg-primary-500 text-white rounded-xl text-lg font-bold hover:bg-primary-600 transition-colors shadow-md shadow-primary-200"
+                                        onClick={async () => {
+                                            if (!proposalId) return;
+                                            try {
+                                                const { consentProposal } = await import('../api/proposal');
+                                                const res = await consentProposal(proposalId);
+                                                alert('동의 완료!');
+                                                setProposalConsentsCount(res.data.totalConsents);
+                                                fetchProposalsAndLocks();
+                                            } catch (err: any) {
+                                                if (isAxiosError(err) && err.response?.status === 409) {
+                                                    alert('이미 동의한 제안서입니다.');
+                                                } else {
+                                                    alert('동의 처리에 실패했습니다.');
+                                                }
+                                            }
+                                        }}
+                                    >
+                                        ✓ 이 제안에 동의하기
+                                    </button>
                                 </div>
                             </div>
-                        </div>
-                        <div className="p-6 border-t border-neutral-100 flex gap-3 shrink-0 bg-white">
-                            <button
-                                onClick={handleTempSave}
-                                disabled={isSaving}
-                                className="flex-1 py-3 border border-neutral-200 rounded-xl text-sm font-semibold text-neutral-600 hover:bg-neutral-50 transition-colors disabled:opacity-50"
-                            >
-                                {isSaving ? '저장 중...' : '임시저장'}
-                            </button>
-                            <button
-                                onClick={() => setActiveModal('submitProposal')}
-                                className="flex-1 py-3 bg-primary-500 text-white rounded-xl text-sm font-semibold hover:bg-primary-600 transition-colors shadow-md shadow-primary-100"
-                            >
-                                최종 제출
-                            </button>
-                        </div>
+                        ) : (
+                            <>
+                                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                                    <div>
+                                        <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">제안 제목</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border-b border-neutral-200 py-2 text-lg font-semibold focus:outline-none focus:border-primary-500 transition-colors"
+                                            placeholder="제목을 입력하세요"
+                                            value={proposalTitle}
+                                            onChange={(e) => setProposalTitle(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">현재 문제</label>
+                                        <textarea
+                                            className="w-full bg-neutral-50 rounded-xl p-4 text-sm min-h-[120px] border border-transparent focus:bg-white focus:border-neutral-200 focus:outline-none transition-all"
+                                            placeholder="현재 발생하고 있는 문제를 상세히 적어주세요."
+                                            value={proposalParagraph}
+                                            onChange={(e) => setProposalParagraph(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">제안 솔루션</label>
+                                        <textarea
+                                            className="w-full bg-neutral-50 rounded-xl p-4 text-sm min-h-[120px] border border-transparent focus:bg-white focus:border-neutral-200 focus:outline-none transition-all"
+                                            placeholder="해결을 위한 구체적인 솔루션을 제안해주세요."
+                                            value={proposalSolution}
+                                            onChange={(e) => setProposalSolution(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">첨부파일</label>
+                                        <div className="border-2 border-dashed border-neutral-200 rounded-xl p-8 flex flex-col items-center justify-center gap-2 hover:bg-neutral-50 hover:border-neutral-300 transition-all cursor-pointer">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-400">
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                                            </svg>
+                                            <span className="text-sm text-neutral-500">파일을 클릭하거나 드래그하여 업로드</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-6 border-t border-neutral-100 flex gap-3 shrink-0 bg-white">
+                                    <button
+                                        onClick={handleTempSave}
+                                        disabled={isSaving}
+                                        className="flex-1 py-3 border border-neutral-200 rounded-xl text-sm font-semibold text-neutral-600 hover:bg-neutral-50 transition-colors disabled:opacity-50"
+                                    >
+                                        {isSaving ? '저장 중...' : '임시저장'}
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveModal('submitProposal')}
+                                        className="flex-1 py-3 bg-primary-500 text-white rounded-xl text-sm font-semibold hover:bg-primary-600 transition-colors shadow-md shadow-primary-100"
+                                    >
+                                        최종 제출
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </aside>
             </div>
@@ -517,16 +634,19 @@ const RoomPage: React.FC = () => {
                                             setIsCreatingProposal(true);
                                             try {
                                                 if (proposalId && isProposalOpen) {
-                                                    try {
-                                                        if (proposalTitle?.trim()) {
-                                                            await updateProposal(proposalId, {
-                                                                title: proposalTitle,
-                                                                paragraph: proposalParagraph,
-                                                                solution: proposalSolution
-                                                            }).catch(console.error);
-                                                        }
-                                                        await finishEditing(proposalId);
-                                                    } catch (err) { console.error(err); }
+                                                    const currentProposal = proposals.find(pr => pr.id === proposalId);
+                                                    if (currentProposal?.status !== 'VOTING') {
+                                                        try {
+                                                            if (proposalTitle?.trim()) {
+                                                                await updateProposal(proposalId, {
+                                                                    title: proposalTitle,
+                                                                    paragraph: proposalParagraph,
+                                                                    solution: proposalSolution
+                                                                }).catch(console.error);
+                                                            }
+                                                            await finishEditing(proposalId);
+                                                        } catch (err) { console.error(err); }
+                                                    }
                                                 }
 
                                                 // 대안 A: 명시적 생성 (즉각 서버 통신)
@@ -545,6 +665,7 @@ const RoomPage: React.FC = () => {
                                                 setProposalTitle('새 제안서');
                                                 setProposalParagraph('');
                                                 setProposalSolution('');
+                                                setProposalConsentsCount(0);
 
                                                 // 상태 갱신 (새 제안서가 목록에 바로 보이도록)
                                                 await fetchProposalsAndLocks();
@@ -576,7 +697,7 @@ const RoomPage: React.FC = () => {
                                     <div className="space-y-3">
                                         {proposals.map(p => {
                                             const lock = locks[p.id];
-                                            const isLocked = lock?.isLocked;
+                                            const isLocked = lock?.locked;
                                             const amIOwner = isLocked && lock.lockOwnerId === user?.userId;
 
                                             return (
@@ -584,35 +705,43 @@ const RoomPage: React.FC = () => {
                                                     key={p.id}
                                                     className={`border border-neutral-200 rounded-xl p-3 hover:border-neutral-300 transition-colors cursor-pointer ${isLocked && !amIOwner ? 'opacity-70 bg-neutral-50' : 'bg-white'}`}
                                                     onClick={async () => {
-                                                        if (isLocked && !amIOwner) {
-                                                            alert(`${lock.lockOwnerNickname}님이 작업 중입니다.`);
+                                                        const isVoting = p.status === 'VOTING';
+
+                                                        if (!isVoting && isLocked && !amIOwner) {
+                                                            alert(`${lock.lockOwnerNickname} 님이 작업 중입니다.`);
                                                             return;
                                                         }
 
                                                         if (proposalId && proposalId !== p.id && isProposalOpen) {
-                                                            try {
-                                                                if (proposalTitle?.trim()) {
-                                                                    await updateProposal(proposalId, {
-                                                                        title: proposalTitle,
-                                                                        paragraph: proposalParagraph,
-                                                                        solution: proposalSolution
-                                                                    }).catch(console.error);
-                                                                }
-                                                                await finishEditing(proposalId);
-                                                            } catch (err) { console.error(err); }
+                                                            const currentProposal = proposals.find(pr => pr.id === proposalId);
+                                                            if (currentProposal?.status !== 'VOTING') {
+                                                                try {
+                                                                    if (proposalTitle?.trim()) {
+                                                                        await updateProposal(proposalId, {
+                                                                            title: proposalTitle,
+                                                                            paragraph: proposalParagraph,
+                                                                            solution: proposalSolution
+                                                                        }).catch(console.error);
+                                                                    }
+                                                                    await finishEditing(proposalId);
+                                                                } catch (err) { console.error(err); }
+                                                            }
                                                         }
 
-                                                        try {
-                                                            await startEditing(p.id);
-                                                        } catch (err) {
-                                                            alert('해당 제안서 편집을 시작할 수 없습니다. (다른 사용자가 작업 중일 수 있습니다.)');
-                                                            return;
+                                                        if (!isVoting) {
+                                                            try {
+                                                                await startEditing(p.id);
+                                                            } catch (err) {
+                                                                alert('해당 제안서 편집을 시작할 수 없습니다. (다른 사용자가 작업 중일 수 있습니다.)');
+                                                                return;
+                                                            }
                                                         }
 
                                                         setProposalId(p.id);
                                                         setProposalTitle(p.title || '');
                                                         setProposalParagraph(p.contents?.paragraph || '');
                                                         setProposalSolution(p.contents?.solution || '');
+                                                        setProposalConsentsCount(p.consents?.length || 0);
                                                         setIsProposalOpen(true);
                                                         setIsMenuOpen(false);
                                                     }}
@@ -625,7 +754,7 @@ const RoomPage: React.FC = () => {
                                                             </span>
                                                             {isLocked && (
                                                                 <span className={`font-bold ${amIOwner ? 'text-primary-600' : 'text-orange-600'}`}>
-                                                                    {amIOwner ? '(내가 작업중)' : `(${lock.lockOwnerNickname} 작업중)`}
+                                                                    {amIOwner ? '내가 작업중...' : `${lock.lockOwnerNickname} 님이 작업중...`}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -692,6 +821,7 @@ const RoomPage: React.FC = () => {
                 isOpen={activeModal === 'submitProposal'}
                 onClose={() => setActiveModal(null)}
                 onConfirm={handleConfirmAction}
+                isSubmitting={isSubmitting}
             />
             <KickParticipantModal
                 isOpen={activeModal === 'kickParticipant'}
