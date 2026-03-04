@@ -1,8 +1,8 @@
 import api from './axios';
 import type { ApiResponse } from '../types/common';
-import type { SignupResponse } from '../types/user';
+import type { SignupRequest, SignupResponse } from '../types/user';
 
-export const signup = async (data: any): Promise<ApiResponse<SignupResponse>> => {
+export const signup = async (data: SignupRequest): Promise<ApiResponse<SignupResponse>> => {
     return api.post('/api/users/signup', data);
 };
 
