@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Lock, ChevronRight } from 'lucide-react';
 import Button from '../common/Button';
+import { useAuthStore } from '../../store/authStore';
 
 interface RoomCardProps {
     roomId: number;
@@ -34,6 +35,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
     createdAt,
 }) => {
     const navigate = useNavigate();
+    const { isAuthenticated } = useAuthStore();
 
     // Get a consistent color based on the title
     const getColorForRoom = (str: string) => {
@@ -48,6 +50,10 @@ const RoomCard: React.FC<RoomCardProps> = ({
     const tagColor = getColorForRoom(title);
 
     const handleCardClick = () => {
+        if (!isAuthenticated) {
+            alert("로그인이 필요한 서비스입니다.");
+            return;
+        }
         navigate(`/room/${roomId}`);
     };
 

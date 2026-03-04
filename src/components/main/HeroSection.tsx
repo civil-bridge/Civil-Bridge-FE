@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import CreateRoomModal from './CreateRoomModal';
+import { useAuthStore } from '../../store/authStore';
 
 const HeroSection: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const { isAuthenticated } = useAuthStore();
 
     return (
         <section className="max-w-[1280px] mx-auto px-4 md:px-6 lg:px-8">
@@ -20,7 +22,13 @@ const HeroSection: React.FC = () => {
                         지역 문제를 함께 논의하고 해결책을 제안하는 열린 공간입니다
                     </p>
                     <button
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={() => {
+                            if (!isAuthenticated) {
+                                alert("로그인 먼저 해주세요.");
+                                return;
+                            }
+                            setIsModalOpen(true);
+                        }}
                         className="bg-white text-primary-600 px-7 py-3.5 rounded-xl font-semibold hover:bg-neutral-50 transition-colors"
                     >
                         새로운 토의방 만들기
