@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import RoomCard from './RoomCard';
 import { ChevronDown, Loader2 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { getTotalRooms, getMyJoinedRooms } from '../../api/room';
 import { useAuthStore } from '../../store/authStore';
 
@@ -11,7 +11,7 @@ interface RoomListSectionProps {
 
 const RoomListSection: React.FC<RoomListSectionProps> = ({ activeTab }) => {
     const [page, setPage] = useState(1);
-    const size = 6;
+    const size = 9;
     const { isAuthenticated } = useAuthStore();
 
     // Reset page to 1 when tab changes
@@ -29,12 +29,27 @@ const RoomListSection: React.FC<RoomListSectionProps> = ({ activeTab }) => {
             return getTotalRooms(page, size);
         },
         enabled: activeTab === 'all' || isAuthenticated,
+        placeholderData: keepPreviousData,
     });
 
     const roomData = data?.data;
     const filteredRooms = roomData?.rooms || [];
     const totalPages = roomData?.totalPages || 1;
     const totalCount = roomData?.totalCount || 0;
+
+    // Calculate which page numbers to show (max 5 buttons)
+    const MAX_VISIBLE_PAGES = 5;
+    let startPage = Math.max(1, page - Math.floor(MAX_VISIBLE_PAGES / 2));
+    const endPage = Math.min(totalPages, startPage + MAX_VISIBLE_PAGES - 1);
+
+    if (endPage - startPage + 1 < MAX_VISIBLE_PAGES) {
+        startPage = Math.max(1, endPage - MAX_VISIBLE_PAGES + 1);
+    }
+
+    const visiblePages = Array.from(
+        { length: endPage - startPage + 1 },
+        (_, i) => startPage + i
+    );
 
     return (
         <section className="py-16 md:py-24 bg-neutral-50">
@@ -94,13 +109,13 @@ const RoomListSection: React.FC<RoomListSectionProps> = ({ activeTab }) => {
                                     &lt;
                                 </button>
 
-                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                                {visiblePages.map((pageNum) => (
                                     <button
                                         key={pageNum}
                                         onClick={() => setPage(pageNum)}
                                         className={`w-10 h-10 flex items-center justify-center rounded-lg border text-sm font-medium transition-colors ${pageNum === page
-                                                ? 'border-primary-500 bg-primary-50 text-primary-600'
-                                                : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
+                                            ? 'border-primary-500 bg-primary-50 text-primary-600'
+                                            : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
                                             }`}
                                     >
                                         {pageNum}
