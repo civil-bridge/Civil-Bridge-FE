@@ -108,7 +108,7 @@ const SignupPage: React.FC = () => {
         }
 
         try {
-            const res = await sendEmailVerification(formData.email);
+            const res = await sendEmailVerification({ email: formData.email });
             if (res.code === 'SUCCESS') {
                 setIsEmailSent(true);
                 start();
@@ -124,7 +124,7 @@ const SignupPage: React.FC = () => {
     const handleVerifyEmail = async () => {
         if (isExpired) return;
         try {
-            const res = await verifyEmail(formData.email, formData.verificationCode);
+            const res = await verifyEmail({ email: formData.email, code: formData.verificationCode });
             if (res.code === 'SUCCESS') {
                 setIsEmailVerified(true);
                 setSuccessMessages((prev) => ({ ...prev, email: '인증이 완료되었습니다.' }));

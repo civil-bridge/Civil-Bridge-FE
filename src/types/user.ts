@@ -13,3 +13,12 @@ export interface SignupRequest {
     email: string;
     phoneNumber: string;
 }
+
+export interface SendEmailRequest {
+    email: string;
+}
+
+export interface VerifyEmailRequest {
+    email: string;
+    code: string;
+}
