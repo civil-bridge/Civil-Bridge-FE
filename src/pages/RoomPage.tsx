@@ -441,78 +441,164 @@ const RoomPage: React.FC = () => {
                                 </svg>
                             </button>
                         </div>
-                        {/* 렌더링 분기: VOTING 상태면 투표 권장 읽기전용 UI, 아니면 편집 UI */}
-                        {proposals.find(p => p.id === proposalId)?.status === 'VOTING' ? (
-                            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                                <div className="bg-primary-50 text-primary-700 p-4 rounded-xl border border-primary-200">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
-                                        </svg>
-                                        <h3 className="font-bold">투표가 진행 중인 제안서입니다</h3>
-                                    </div>
-                                    <p className="text-sm mb-4">목표 인원 수가 달성되면 제안이 통과됩니다. 기간 내에 꼭 투표해주세요!</p>
+                        {/* 렌더링 분기: VOTING / COMPLETED / REJECTED 상태면 투표 결과/읽기전용 UI, 아니시면 편집 UI */}
+                        {['VOTING', 'COMPLETED', 'REJECTED'].includes(proposals.find(p => p.id === proposalId)?.status || '') ? (() => {
+                            const currentProposal = proposals.find(p => p.id === proposalId);
+                            const isVoting = currentProposal?.status === 'VOTING';
+                            const isCompleted = currentProposal?.status === 'COMPLETED';
+                            const isRejected = currentProposal?.status === 'REJECTED';
+                            // threshold met condition
+                            const thresholdMet = currentProposal?.minAgreements !== undefined ? (currentProposal.consents?.length || 0) >= currentProposal.minAgreements : false;
+                            const isAuthor = currentProposal?.authorId === user?.userId;
 
-                                    <div className="bg-white/50 rounded-lg p-3 border border-primary-100 flex items-center justify-between">
-                                        <div className="flex flex-col">
-                                            <span className="text-xs font-bold uppercase tracking-tight text-primary-600 mb-1">현재 투표 인원</span>
-                                            <span className="text-2xl font-black text-primary-800">{proposalConsentsCount}명 투표 완료</span>
+                            return (
+                                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                                    {isCompleted ? (
+                                        <div className="bg-green-50 text-green-700 p-4 rounded-xl border border-green-200">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+                                                </svg>
+                                                <h3 className="font-bold">🎉 투표가 가결되었습니다. 이제 민원 접수가 가능합니다!</h3>
+                                            </div>
+                                            <p className="text-sm">목표 인원이 달성되어 투표가 성공적으로 확정되었습니다.</p>
                                         </div>
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-xs font-bold uppercase tracking-tight text-primary-600 mb-1">투표 마감</span>
-                                            <span className="text-sm font-semibold text-primary-800">
-                                                {proposals.find(p => p.id === proposalId)?.deadline
-                                                    ? new Date(proposals.find(p => p.id === proposalId)!.deadline!).toLocaleDateString()
-                                                    : '미정'}
+                                    ) : isRejected ? (
+                                        <div className="bg-red-50 text-red-700 p-4 rounded-xl border border-red-200">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
+                                                </svg>
+                                                <h3 className="font-bold">투표 기한이 만료되었거나 부결되었습니다.</h3>
+                                            </div>
+                                            <p className="text-sm">목표 동의 인원수를 채우지 못해 제안서가 부결되었습니다.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-primary-50 text-primary-700 p-4 rounded-xl border border-primary-200">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+                                                </svg>
+                                                <h3 className="font-bold">투표가 진행 중인 제안서입니다</h3>
+                                            </div>
+                                            <p className="text-sm mb-4">목표 인원 수가 달성되면 제안이 통과됩니다. 기간 내에 꼭 투표해주세요!</p>
+
+                                            <div className="bg-white/50 rounded-lg p-3 border border-primary-100 flex items-center justify-between">
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-bold uppercase tracking-tight text-primary-600 mb-1">현재 투표 인원</span>
+                                                    <span className="text-2xl font-black text-primary-800">{proposalConsentsCount}명 투표 완료</span>
+                                                </div>
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-xs font-bold uppercase tracking-tight text-primary-600 mb-1">투표 마감</span>
+                                                    <span className="text-sm font-semibold text-primary-800">
+                                                        {currentProposal?.deadline
+                                                            ? new Date(currentProposal.deadline).toLocaleDateString()
+                                                            : '미정'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">제안 제목</label>
+                                        <h3 className="text-lg font-semibold text-neutral-800 pb-2 border-b border-neutral-100">{proposalTitle || '제목 없음'}</h3>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">작성자</label>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium text-neutral-700 bg-neutral-100 px-3 py-1 rounded-full">
+                                                {roomInfo?.members?.find(m => m.userId === currentProposal?.authorId)?.nickname || '알 수 없음'}
                                             </span>
                                         </div>
                                     </div>
-                                </div>
 
-                                <div>
-                                    <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">제안 제목</label>
-                                    <h3 className="text-lg font-semibold text-neutral-800 pb-2 border-b border-neutral-100">{proposalTitle || '제목 없음'}</h3>
-                                </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">현재 문제</label>
+                                        <div className="bg-neutral-50 rounded-xl p-4 text-sm text-neutral-700 whitespace-pre-wrap min-h-[120px]">
+                                            {proposalParagraph || '내용 없음'}
+                                        </div>
+                                    </div>
 
-                                <div>
-                                    <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">현재 문제</label>
-                                    <div className="bg-neutral-50 rounded-xl p-4 text-sm text-neutral-700 whitespace-pre-wrap min-h-[120px]">
-                                        {proposalParagraph || '내용 없음'}
+                                    <div>
+                                        <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">제안 솔루션</label>
+                                        <div className="bg-neutral-50 rounded-xl p-4 text-sm text-neutral-700 whitespace-pre-wrap min-h-[120px]">
+                                            {proposalSolution || '내용 없음'}
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-8 space-y-3">
+                                        {isVoting && (
+                                            <button
+                                                className="w-full py-4 bg-primary-500 text-white rounded-xl text-lg font-bold hover:bg-primary-600 transition-colors shadow-md shadow-primary-200"
+                                                onClick={async () => {
+                                                    if (!proposalId) return;
+                                                    try {
+                                                        const { consentProposal } = await import('../api/proposal');
+                                                        const res = await consentProposal(proposalId);
+                                                        alert('동의 완료!');
+                                                        setProposalConsentsCount(res.data.totalConsents);
+                                                        fetchProposalsAndLocks();
+                                                    } catch (err: any) {
+                                                        if (isAxiosError(err) && err.response?.status === 409) {
+                                                            alert('이미 동의한 제안서입니다.');
+                                                        } else {
+                                                            alert('동의 처리에 실패했습니다.');
+                                                        }
+                                                    }
+                                                }}
+                                            >
+                                                ✓ 이 제안에 동의하기
+                                            </button>
+                                        )}
+
+                                        {/* 작성자 전용: 목표치 도달 시 '결과 확정하기 버튼' 노출 */}
+                                        {isVoting && isAuthor && thresholdMet && (
+                                            <button
+                                                className="w-full py-4 bg-orange-500 text-white rounded-xl text-lg font-bold hover:bg-orange-600 transition-colors shadow-md shadow-orange-200"
+                                                onClick={async () => {
+                                                    if (!proposalId) return;
+                                                    try {
+                                                        const { endVoting } = await import('../api/proposal');
+                                                        await endVoting(proposalId);
+                                                        alert('투표 결과가 가결(COMPLETED)로 확정되었습니다!');
+                                                        // 확정 후 목록으로 돌아가기 위해 패널 닫기
+                                                        setIsProposalOpen(false);
+                                                        setProposalId(null);
+                                                        setProposalTitle('');
+                                                        setProposalParagraph('');
+                                                        setProposalSolution('');
+                                                        fetchProposalsAndLocks();
+                                                    } catch (err: any) {
+                                                        alert('결과 확정 처리에 실패했습니다.');
+                                                    }
+                                                }}
+                                            >
+                                                🛑 투표 결과 확정하기
+                                            </button>
+                                        )}
+
+                                        {/* 가결 됨: 민원 사이트로 링크 안내 버튼 */}
+                                        {isCompleted && (
+                                            <button
+                                                className="w-full py-4 bg-green-600 text-white rounded-xl text-lg font-bold hover:bg-green-700 transition-colors shadow-md shadow-green-200"
+                                                onClick={() => {
+                                                    // TODO: 서버에서 URL 받아오는 방식으로 변경 시 대응 필요
+                                                    // 임시 하드코딩된 지역별로 분기
+                                                    const districtName = roomInfo.district || '';
+                                                    const url = "https://www.epeople.go.kr/"; // 임시 통합 링크(국민신문고 등)
+                                                    alert(`${roomInfo.city} ${districtName} 민원 사이트로 이동합니다.`);
+                                                    window.open(url, '_blank');
+                                                }}
+                                            >
+                                                🌐 해당 지역 민원 사이트에 접수하러 가기
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-neutral-400 mb-2 uppercase tracking-tight">제안 솔루션</label>
-                                    <div className="bg-neutral-50 rounded-xl p-4 text-sm text-neutral-700 whitespace-pre-wrap min-h-[120px]">
-                                        {proposalSolution || '내용 없음'}
-                                    </div>
-                                </div>
-
-                                <div className="mt-8">
-                                    <button
-                                        className="w-full py-4 bg-primary-500 text-white rounded-xl text-lg font-bold hover:bg-primary-600 transition-colors shadow-md shadow-primary-200"
-                                        onClick={async () => {
-                                            if (!proposalId) return;
-                                            try {
-                                                const { consentProposal } = await import('../api/proposal');
-                                                const res = await consentProposal(proposalId);
-                                                alert('동의 완료!');
-                                                setProposalConsentsCount(res.data.totalConsents);
-                                                fetchProposalsAndLocks();
-                                            } catch (err: any) {
-                                                if (isAxiosError(err) && err.response?.status === 409) {
-                                                    alert('이미 동의한 제안서입니다.');
-                                                } else {
-                                                    alert('동의 처리에 실패했습니다.');
-                                                }
-                                            }
-                                        }}
-                                    >
-                                        ✓ 이 제안에 동의하기
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
+                            );
+                        })() : (
                             <>
                                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                                     <div>
@@ -749,9 +835,11 @@ const RoomPage: React.FC = () => {
                                                     <div className="flex flex-col gap-1">
                                                         <h4 className="font-bold text-sm text-neutral-800 truncate">{p.title || '제목 없음'}</h4>
                                                         <div className="flex items-center gap-2 text-[10px] sm:text-xs">
-                                                            <span className={`px-1.5 py-0.5 rounded-full border ${p.status === 'SUBMITTABLE' ? 'border-primary-200 text-primary-600 bg-primary-50' : 'border-neutral-200 text-neutral-500 bg-neutral-50'}`}>
-                                                                {p.status === 'SUBMITTABLE' ? '작성중' : p.status}
-                                                            </span>
+                                                            {(p.status === 'VOTING' || p.status === 'COMPLETED' || isLocked) && (
+                                                                <span className={`px-1.5 py-0.5 rounded-full border ${p.status === 'COMPLETED' ? 'border-green-200 text-green-600 bg-green-50' : p.status === 'VOTING' ? 'border-blue-200 text-blue-600 bg-blue-50' : 'border-neutral-200 text-neutral-500 bg-neutral-50'}`}>
+                                                                    {p.status === 'COMPLETED' ? '가결됨' : p.status === 'VOTING' ? '투표 중...' : p.status === 'UNSUBMITTABLE' ? '작성중' : p.status}
+                                                                </span>
+                                                            )}
                                                             {isLocked && (
                                                                 <span className={`font-bold ${amIOwner ? 'text-primary-600' : 'text-orange-600'}`}>
                                                                     {amIOwner ? '내가 작업중...' : `${lock.lockOwnerNickname} 님이 작업중...`}

@@ -20,6 +20,7 @@ export interface ProposalResponse {
     contents: ProposalContents;
     status: SubmitStatus | string;
     consents: Consenter[];
+    minAgreements?: number;
     deadline: string | null;
     createdAt: string;
     updatedAt: string;
