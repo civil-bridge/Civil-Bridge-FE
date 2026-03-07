@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
+import { createRoom } from '../../api/room';
 
 interface CreateRoomModalProps {
     isOpen: boolean;
@@ -155,6 +156,7 @@ const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose }) =>
     const [city, setCity] = useState('');
     const [district, setDistrict] = useState('');
     const [description, setDescription] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
 
     const isFormValid = title.trim() !== '' && city !== '' && district !== '' && description.trim() !== '';
 
@@ -179,15 +181,29 @@ const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose }) =>
         setDistrict(newValue ? newValue.value : '');
     };
 
-    const handleCreate = () => {
+    const handleCreate = async () => {
         if (!isFormValid) return;
-        console.log('Creating room:', { title, region: `${city} ${district}`, description });
-        alert('논의방이 생성되었습니다.');
-        onClose();
-        setTitle('');
-        setCity('');
-        setDistrict('');
-        setDescription('');
+        setIsLoading(true);
+        try {
+            await createRoom({
+                title,
+                city,
+                district,
+                description,
+                accessLevel: 'PUBLIC'
+            });
+            alert('논의방이 생성되었습니다.');
+            onClose();
+            setTitle('');
+            setCity('');
+            setDistrict('');
+            setDescription('');
+        } catch (error) {
+            console.error('Failed to create room:', error);
+            alert('논의방 생성에 실패했습니다. 다시 시도해주세요.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -206,10 +222,10 @@ const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose }) =>
                     </Button>
                     <Button
                         className="flex-1 rounded-xl"
-                        disabled={!isFormValid}
+                        disabled={!isFormValid || isLoading}
                         onClick={handleCreate}
                     >
-                        생성하기
+                        {isLoading ? '생성 중...' : '생성하기'}
                     </Button>
                 </div>
             }

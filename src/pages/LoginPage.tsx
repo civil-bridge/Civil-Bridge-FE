@@ -4,9 +4,12 @@ import { Eye, EyeOff } from 'lucide-react';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import Logo from '../components/common/Logo';
+import { login as loginApi } from '../api/auth';
+import { useAuthStore } from '../store/authStore';
 
 const LoginPage: React.FC = () => {
     const navigate = useNavigate();
+    const { login } = useAuthStore();
     const [formData, setFormData] = useState({
         username: '',
         password: '',
@@ -29,7 +32,7 @@ const LoginPage: React.FC = () => {
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const newErrors: Record<string, string> = {};
 
@@ -41,10 +44,24 @@ const LoginPage: React.FC = () => {
             return;
         }
 
-        // Mock Login API call
-        console.log('Login attempt:', formData);
-        // On success, navigate to home (which currently redirects to signup, but that's for now)
-        navigate('/');
+        try {
+            const res = await loginApi({ loginId: formData.username, password: formData.password });
+            if (res.code === 'SUCCESS' && res.data) {
+                localStorage.setItem('accessToken', res.data.accessToken);
+                localStorage.setItem('refreshToken', res.data.refreshToken);
+                login({
+                    userId: res.data.userId,
+                    nickname: res.data.nickname,
+                    email: res.data.email,
+                    role: res.data.role
+                });
+                navigate('/');
+            } else {
+                setErrors({ username: res.message || '로그인에 실패했습니다.' });
+            }
+        } catch (error: any) {
+            setErrors({ username: error.response?.data?.message || '로그인 로직 수행 중 오류가 발생했습니다.' });
+        }
     };
 
     return (

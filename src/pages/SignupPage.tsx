@@ -5,6 +5,7 @@ import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import Logo from '../components/common/Logo';
 import { useTimer } from '../hooks/useTimer';
+import { signup, sendEmailVerification, verifyEmail } from '../api/user';
 
 const SignupPage: React.FC = () => {
     const navigate = useNavigate();
@@ -12,6 +13,8 @@ const SignupPage: React.FC = () => {
         username: '',
         password: '',
         confirmPassword: '',
+        name: '',
+        phoneNumber: '',
         email: '',
         verificationCode: '',
         nickname: '',
@@ -97,41 +100,54 @@ const SignupPage: React.FC = () => {
         }, 500);
     };
 
-    const handleSendEmail = () => {
+    const handleSendEmail = async () => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(formData.email)) {
             setErrors((prev) => ({ ...prev, email: '올바른 이메일 형식을 입력해주세요' }));
             return;
         }
 
-        // Mock API call
-        setTimeout(() => {
-            setIsEmailSent(true);
-            start();
-            setSuccessMessages((prev) => ({ ...prev, email: '인증번호가 발송되었습니다.' }));
-        }, 500);
-    };
-
-    const handleVerifyEmail = () => {
-        if (isExpired) return;
-        if (formData.verificationCode === '123456') { // Mock verification code
-            setIsEmailVerified(true);
-            setSuccessMessages((prev) => ({ ...prev, email: '인증이 완료되었습니다.' }));
-            setErrors((prev) => {
-                const newErrors = { ...prev };
-                delete newErrors.verificationCode;
-                return newErrors;
-            });
-        } else {
-            setErrors((prev) => ({ ...prev, verificationCode: '인증번호가 일치하지 않습니다' }));
+        try {
+            const res = await sendEmailVerification({ email: formData.email });
+            if (res.code === 'SUCCESS') {
+                setIsEmailSent(true);
+                start();
+                setSuccessMessages((prev) => ({ ...prev, email: '인증번호가 발송되었습니다.' }));
+            } else {
+                setErrors((prev) => ({ ...prev, email: res.message || '이메일 발송에 실패했습니다.' }));
+            }
+        } catch (error: any) {
+            setErrors((prev) => ({ ...prev, email: error.response?.data?.message || '발송 중 오류가 발생했습니다.' }));
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleVerifyEmail = async () => {
+        if (isExpired) return;
+        try {
+            const res = await verifyEmail({ email: formData.email, code: formData.verificationCode });
+            if (res.code === 'SUCCESS') {
+                setIsEmailVerified(true);
+                setSuccessMessages((prev) => ({ ...prev, email: '인증이 완료되었습니다.' }));
+                setErrors((prev) => {
+                    const newErrors = { ...prev };
+                    delete newErrors.verificationCode;
+                    return newErrors;
+                });
+            } else {
+                setErrors((prev) => ({ ...prev, verificationCode: res.message || '인증번호가 일치하지 않습니다' }));
+            }
+        } catch (error: any) {
+            setErrors((prev) => ({ ...prev, verificationCode: error.response?.data?.message || '인증 중 오류가 발생했습니다' }));
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const newErrors: Record<string, string> = {};
 
         if (!isUsernameChecked) newErrors.username = '아이디 중복확인을 해주세요';
+        if (!formData.name) newErrors.name = '이름을 입력해주세요';
+        if (!formData.phoneNumber) newErrors.phoneNumber = '전화번호를 입력해주세요';
         if (!isNicknameChecked) newErrors.nickname = '닉네임 중복확인을 해주세요';
         if (!isEmailVerified) newErrors.email = '이메일 인증을 완료해주세요';
 
@@ -149,9 +165,25 @@ const SignupPage: React.FC = () => {
             return;
         }
 
-        // Success
-        alert('회원가입이 완료되었습니다!');
-        navigate('/login');
+        try {
+            const res = await signup({
+                loginId: formData.username,
+                password: formData.password,
+                name: formData.name,
+                nickname: formData.nickname,
+                email: formData.email,
+                phoneNumber: formData.phoneNumber
+            });
+
+            if (res.code === 'SUCCESS') {
+                alert('회원가입이 완료되었습니다!');
+                navigate('/login');
+            } else {
+                alert(res.message || '회원가입에 실패했습니다.');
+            }
+        } catch (error: any) {
+            alert(error.response?.data?.message || '회원가입 중 오류가 발생했습니다.');
+        }
     };
 
     return (
@@ -222,6 +254,26 @@ const SignupPage: React.FC = () => {
                                 {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>
                         }
+                    />
+
+                    <Input
+                        label="이름"
+                        id="name"
+                        name="name"
+                        placeholder="이름을 입력하세요 (예: 홍길동)"
+                        value={formData.name}
+                        onChange={handleChange}
+                        error={errors.name}
+                    />
+
+                    <Input
+                        label="전화번호"
+                        id="phoneNumber"
+                        name="phoneNumber"
+                        placeholder="전화번호를 입력하세요 (예: 010-1234-5678)"
+                        value={formData.phoneNumber}
+                        onChange={handleChange}
+                        error={errors.phoneNumber}
                     />
 
                     <div className="flex flex-col gap-3">

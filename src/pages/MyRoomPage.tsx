@@ -3,27 +3,27 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Camera, CheckCircle2, Mail, LogOut } from 'lucide-react';
 import Button from '../components/common/Button';
 import Modal from '../components/common/Modal';
-
+import { useAuthStore } from '../store/authStore';
+import { logout as logoutApi } from '../api/auth';
 const MyRoomPage: React.FC = () => {
     const navigate = useNavigate();
 
     // State Management
-    const [isCertified, setIsCertified] = useState(false);
-    const [nickname, setNickname] = useState('김시민');
-    const [email, setEmail] = useState('example@email.com');
+    const { user, logout: clearAuthStore } = useAuthStore();
+    const [isCertified, setIsCertified] = useState(user?.role === 'OFFICIAL');
+    const [nickname, setNickname] = useState(user?.nickname || '');
+    const [email, setEmail] = useState(user?.email || '');
     const [certEmail, setCertEmail] = useState('');
 
     // Modal States
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [showCertSentModal, setShowCertSentModal] = useState(false);
 
-    // Dummy user data
+    // Dummy user data (some fields are not provided by API)
     const userData = {
-        nickname: nickname,
-        email: email,
         profileImage: null, // Placeholder for circular image
-        certifiedEmail: 'official@go.kr',
-        certifiedDate: '2025.01.02'
+        certifiedEmail: user?.role === 'OFFICIAL' ? user?.email : '',
+        certifiedDate: '2025.01.02' // TODO: BE Needs to provide this field if used
     };
 
     const handleSaveInfo = () => {
@@ -35,9 +35,16 @@ const MyRoomPage: React.FC = () => {
         setShowCertSentModal(true);
     };
 
-    const handleLogout = () => {
-        // Mock logout logic
-        navigate('/login');
+    const handleLogout = async () => {
+        try {
+            await logoutApi();
+        } catch (error) {
+            console.error('Logout API failed:', error);
+            // Even if API fails, we should clear local storage and store
+        } finally {
+            clearAuthStore();
+            navigate('/login');
+        }
     };
 
     return (
