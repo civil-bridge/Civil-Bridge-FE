@@ -483,18 +483,75 @@ const RoomPage: React.FC = () => {
                                             </div>
                                             <p className="text-sm mb-4">목표 인원 수가 달성되면 제안이 통과됩니다. 기간 내에 꼭 투표해주세요!</p>
 
-                                            <div className="bg-white/50 rounded-lg p-3 border border-primary-100 flex items-center justify-between">
-                                                <div className="flex flex-col">
-                                                    <span className="text-xs font-bold uppercase tracking-tight text-primary-600 mb-1">현재 투표 인원</span>
-                                                    <span className="text-2xl font-black text-primary-800">{proposalConsentsCount}명 투표 완료</span>
+                                            <div className="bg-white/50 rounded-lg p-4 border border-primary-100 flex flex-col gap-3">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-baseline gap-1">
+                                                        <span className="text-sm font-bold text-neutral-500 tracking-tight">현재 누적 동의</span>
+                                                        <span className="text-2xl font-black text-primary-600">{proposalConsentsCount}명</span>
+                                                        <span className="text-sm text-neutral-400 font-medium ml-1">/ 목표 {currentProposal?.minAgreements || '-'}명</span>
+                                                    </div>
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-xs font-bold uppercase tracking-tight text-primary-600 mb-0.5">투표 마감 일시</span>
+                                                        <span className="text-sm font-semibold text-primary-800">
+                                                            {currentProposal?.deadline
+                                                                ? (() => {
+                                                                    const date = new Date(currentProposal.deadline);
+                                                                    const dateString = date.toLocaleDateString();
+                                                                    const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                                                                    const now = new Date();
+                                                                    const diffMs = date.getTime() - now.getTime();
+                                                                    const diffHours = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+                                                                    const diffDays = Math.max(0, Math.floor(diffHours / 24));
+
+                                                                    let remainingText = '';
+                                                                    if (diffMs > 0) {
+                                                                        if (diffDays > 0) {
+                                                                            remainingText = `(${diffDays}일 남음)`;
+                                                                        } else if (diffHours > 0) {
+                                                                            remainingText = `(${diffHours}시간 남음)`;
+                                                                        } else {
+                                                                            remainingText = '(마감 임박)';
+                                                                        }
+                                                                    } else {
+                                                                        remainingText = '(마감됨)';
+                                                                    }
+
+                                                                    return `${dateString} ${timeString} ${remainingText}`;
+                                                                })()
+                                                                : '미정'}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-xs font-bold uppercase tracking-tight text-primary-600 mb-1">투표 마감</span>
-                                                    <span className="text-sm font-semibold text-primary-800">
-                                                        {currentProposal?.deadline
-                                                            ? new Date(currentProposal.deadline).toLocaleDateString()
-                                                            : '미정'}
+
+                                                {/* Progress Bar Container */}
+                                                <div className="w-full h-3 bg-neutral-200 rounded-full overflow-hidden relative mt-1">
+                                                    {(() => {
+                                                        const target = currentProposal?.minAgreements || 1; // Prevent division by 0
+                                                        const current = proposalConsentsCount;
+                                                        const percentage = Math.min(100, (current / target) * 100);
+
+                                                        return (
+                                                            <div
+                                                                className="absolute top-0 left-0 h-full bg-primary-500 transition-all duration-500 ease-out"
+                                                                style={{ width: `${percentage}%` }}
+                                                            />
+                                                        );
+                                                    })()}
+                                                </div>
+
+                                                <div className="flex justify-between items-center px-1">
+                                                    <span className="text-xs font-semibold text-primary-600">
+                                                        {(() => {
+                                                            const target = currentProposal?.minAgreements || 1;
+                                                            const current = proposalConsentsCount;
+                                                            const percentage = Math.round((current / target) * 100);
+                                                            return `${percentage}% 달성`;
+                                                        })()}
                                                     </span>
+                                                    {thresholdMet && (
+                                                        <span className="text-xs font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded">목표치 달성!</span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

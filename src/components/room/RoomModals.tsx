@@ -82,6 +82,14 @@ export const SubmitProposalModal: React.FC<RoomModalProps> = ({ isOpen, onClose,
             return;
         }
 
+        const selectedDateTime = new Date(`${deadlineDate}T${deadlineTime}:59`);
+
+        if (selectedDateTime <= new Date()) {
+            alert('마감 시간은 현재 시간 이후여야 합니다.');
+            return;
+        }
+
+        // Send local time as string because backend treats the string as local time (KST)
         const deadlineStr = `${deadlineDate}T${deadlineTime}:59`;
         onConfirm({
             minAgreements,
@@ -110,18 +118,21 @@ export const SubmitProposalModal: React.FC<RoomModalProps> = ({ isOpen, onClose,
                 <div>
                     <label className="block text-xs font-bold text-neutral-500 mb-1">마감 날짜 및 시간</label>
                     <div className="flex gap-2">
-                        <input
-                            type="date"
-                            value={deadlineDate}
-                            onChange={(e) => setDeadlineDate(e.target.value)}
-                            min={new Date().toISOString().split('T')[0]}
-                            className="flex-1 border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-400"
-                        />
+                        <div className="relative flex-1">
+                            <input
+                                type="date"
+                                value={deadlineDate}
+                                onChange={(e) => setDeadlineDate(e.target.value)}
+                                min={new Date().toISOString().split('T')[0]}
+                                className="w-full border border-neutral-200 rounded-lg pl-3 pr-8 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary-400 bg-white"
+                                style={{ colorScheme: 'light' }}
+                            />
+                        </div>
                         <input
                             type="time"
                             value={deadlineTime}
                             onChange={(e) => setDeadlineTime(e.target.value)}
-                            className="w-28 border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-400"
+                            className="w-32 border border-neutral-200 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary-400 bg-white"
                         />
                     </div>
                 </div>
