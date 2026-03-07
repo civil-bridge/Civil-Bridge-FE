@@ -27,12 +27,7 @@ export interface ProposalResponse {
 }
 
 export interface ProposalCreateReq {
-    title?: string;
-    paragraph?: string;
-    image?: string;
-    solution?: string;
-    expectedEffect?: string;
-    roomId?: number;
+    roomId: number;
 }
 
 export interface ProposalUpdateReq {

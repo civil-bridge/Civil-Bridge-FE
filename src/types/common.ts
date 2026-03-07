@@ -14,7 +14,7 @@ export interface PageResponse<T> {
 
 export type AccessLevel = 'PUBLIC' | 'OFFICIALS_ONLY' | 'USER_ONLY';
 
-export type SubmitStatus = 'COMPLETED' | 'UNSUBMITTABLE' | 'VOTING';
+export type SubmitStatus = 'COMPLETED' | 'UNSUBMITTABLE' | 'VOTING' | 'REJECTED';
 
 export type MessageType = 'CHAT' | 'JOIN' | 'LEAVE';
 

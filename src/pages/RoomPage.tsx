@@ -794,10 +794,7 @@ const RoomPage: React.FC = () => {
 
                                                 // 대안 A: 명시적 생성 (즉각 서버 통신)
                                                 const res = await createProposal({
-                                                    roomId: numericRoomId,
-                                                    title: '새 제안서',
-                                                    paragraph: '',
-                                                    solution: ''
+                                                    roomId: numericRoomId
                                                 });
 
                                                 const newId = res.data.id;
