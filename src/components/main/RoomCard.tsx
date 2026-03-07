@@ -4,12 +4,13 @@ import { Users, Lock, ChevronRight } from 'lucide-react';
 import Button from '../common/Button';
 
 interface RoomCardProps {
-    id: number;
-    region: string;
-    isOfficial: boolean;
+    roomId: number;
+    city: string;
+    district: string;
+    accessLevel: 'PUBLIC' | 'OFFICIALS_ONLY' | 'USER_ONLY';
     title: string;
     description: string;
-    participants: number;
+    currentUsers: number;
     createdAt: string;
 }
 
@@ -23,12 +24,13 @@ const TAG_COLORS = [
 ];
 
 const RoomCard: React.FC<RoomCardProps> = ({
-    id,
-    region,
-    isOfficial,
+    roomId,
+    city,
+    district,
+    accessLevel,
     title,
     description,
-    participants,
+    currentUsers,
     createdAt,
 }) => {
     const navigate = useNavigate();
@@ -46,22 +48,21 @@ const RoomCard: React.FC<RoomCardProps> = ({
     const tagColor = getColorForRoom(title);
 
     const handleCardClick = () => {
-        navigate(`/room/${id}`);
+        navigate(`/room/${roomId}`);
     };
 
     return (
         <div
-            className="group bg-white border border-neutral-200 rounded-2xl p-5 shadow-sm transition-all duration-200 cursor-pointer hover:shadow-lg hover:border-primary-200 hover:-translate-y-0.5 flex flex-col gap-4 h-[240px]"
-            onClick={handleCardClick}
+            className="group bg-white border border-neutral-200 rounded-2xl p-5 shadow-sm transition-all duration-200 hover:shadow-lg hover:border-primary-200 flex flex-col gap-4 h-[240px]"
         >
             <div className="flex items-center justify-between">
                 <span
                     className="inline-flex px-3 py-1 rounded-lg text-xs font-medium"
                     style={{ backgroundColor: tagColor.bg, color: tagColor.text }}
                 >
-                    {region}
+                    {city} {district}
                 </span>
-                {isOfficial && (
+                {accessLevel === 'OFFICIALS_ONLY' && (
                     <span className="inline-flex items-center gap-1 px-3 py-1 bg-[#FEF3C7] text-[#D97706] border border-[#F59E0B] rounded-lg text-xs font-medium">
                         <Lock size={12} />
                         공무원 전용
@@ -80,12 +81,16 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 <div className="flex items-center gap-2 text-neutral-400 text-xs">
                     <div className="flex items-center gap-1">
                         <Users size={14} />
-                        <span>{participants}명 참여 중</span>
+                        <span>{currentUsers}명 참여 중</span>
                     </div>
                     <span className="text-neutral-300">|</span>
                     <span>{createdAt}</span>
                 </div>
-                <Button variant="ghost" className="!p-0 !h-auto text-primary-500 font-semibold hover:bg-transparent flex items-center gap-0.5 group-hover:gap-1.5 transition-all">
+                <Button
+                    variant="ghost"
+                    className="!p-0 !h-auto text-primary-500 font-semibold hover:bg-transparent flex items-center gap-0.5 group-hover:gap-1.5 transition-all cursor-pointer"
+                    onClick={handleCardClick}
+                >
                     입장하기 <ChevronRight size={16} />
                 </Button>
             </div>
