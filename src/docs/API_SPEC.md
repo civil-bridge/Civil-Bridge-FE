@@ -1,6 +1,6 @@
 # Civil Bridge API 명세서
 
-> **버전**: 2026-03-02 기준 실제 구현된 엔드포인트 기준
+> **버전**: 2026-03-07 기준 실제 구현된 엔드포인트 기준
 > **Base URL**: `http://localhost:8080` (로컬), `https://api.civil-bridge.com` (운영)
 > **API 문서(Swagger)**: `http://localhost:8080/swagger-ui.html`
 
@@ -38,6 +38,7 @@ Authorization: Bearer {accessToken}
 | `/api/users/signup` | POST | 회원가입 |
 | `/api/users/email/send` | POST | 이메일 인증 코드 발송 |
 | `/api/users/email/verify` | POST | 이메일 인증 확인 |
+| `/api/discussion-rooms/retrieveTotal` | GET | 전체 논의방 목록 조회 |
 | `/swagger-ui/**` | GET | Swagger UI |
 | `/v3/api-docs/**` | GET | OpenAPI 스펙 |
 | `/actuator/health/**` | GET | 헬스 체크 |
@@ -286,7 +287,7 @@ Authorization: Bearer {accessToken}
 
 ## 4. Discussion Room API
 
-모든 논의방 API는 인증이 필요합니다.
+논의방 API 중 전체 목록 조회(`4-2`)는 비로그인 사용자도 접근 가능합니다. 나머지 API는 인증이 필요합니다.
 
 ### 4-1. 논의방 생성
 
@@ -367,7 +368,7 @@ HTTP 201 Created
 ### 4-2. 전체 논의방 목록 조회
 
 **`GET /api/discussion-rooms/retrieveTotal`**
-인증 필요
+인증 불필요 (비로그인 사용자도 조회 가능)
 
 전체 논의방을 최신순으로 조회합니다.
 
@@ -633,8 +634,9 @@ HTTP 200 OK
     "authorId": 5,
     "title": "수원시 영통구 교통 체증 해결 방안",
     "contents": { ... },
-    "status": "SUBMITTABLE",
+    "status": "UNSUBMITTABLE",
     "consents": [],
+    "minAgreements": 0,
     "deadline": null,
     "createdAt": "2026-02-17T10:00:00",
     "updatedAt": "2026-02-17T10:00:00"
@@ -784,7 +786,7 @@ HTTP 200 OK
 **`POST /api/proposals/{proposalId}/start-voting`**
 인증 필요
 
-최종 내용 저장과 투표 상태 전환을 단일 요청으로 원자적으로 처리합니다. 기본 투표 기간은 3일입니다.
+최종 내용 저장과 투표 상태 전환을 단일 요청으로 원자적으로 처리합니다.
 호출 후 제안서 상태가 `VOTING`으로 변경됩니다. **제안서 작성자(authorId)만 호출할 수 있습니다.** 다른 사용자가 현재 편집 중인 경우(락 보유) 호출이 차단됩니다.
 
 #### Path Parameters
@@ -801,7 +803,9 @@ HTTP 200 OK
   "paragraph": "경기도 수원시 영통구의 교통 체증 문제를 해결하기 위한 제안입니다.",
   "image": "https://example.com/images/proposal.png",
   "solution": "버스 전용 차로 확대 및 신호 체계 개선",
-  "expectedEffect": "출퇴근 시간 교통 체증 30% 감소 예상"
+  "expectedEffect": "출퇴근 시간 교통 체증 30% 감소 예상",
+  "minAgreements": 10,
+  "deadline": "2026-03-10T18:00:00"
 }
 ```
 
@@ -812,6 +816,8 @@ HTTP 200 OK
 | `image` | `string` | ❌ | 이미지 URL |
 | `solution` | `string` | ❌ | 해결 방안 |
 | `expectedEffect` | `string` | ❌ | 기대 효과 |
+| `minAgreements` | `number` | ✅ | 목표 동의 인원 (정족수, 1 이상) |
+| `deadline` | `string` | ✅ | 투표 마감 일시 (ISO 8601, 현재 시각 이후) |
 
 #### Response Body (`data`)
 
@@ -824,7 +830,12 @@ HTTP 200 OK
 **`POST /api/proposals/{proposalId}/end-voting`**
 인증 필요
 
-진행 중인 투표를 수동으로 종료합니다.
+진행 중인 투표를 수동으로 종료합니다. **제안서 작성자(authorId)만 호출할 수 있습니다.**
+
+종료 결과는 아래 조건에 따라 결정됩니다:
+- 동의 수 ≥ `minAgreements` → `COMPLETED` (가결)
+- 마감일이 경과한 경우 → `REJECTED` (부결)
+- 위 두 조건 모두 충족하지 않으면 에러 반환 (`INSUFFICIENT_CONSENTS`)
 
 #### Path Parameters
 
@@ -838,7 +849,7 @@ HTTP 200 OK
 
 #### Response Body (`data`)
 
-투표 종료된 `ProposalResponse`
+투표 종료된 `ProposalResponse` (`status`가 `COMPLETED` 또는 `REJECTED`로 변경됨)
 
 ---
 
@@ -932,13 +943,14 @@ HTTP 200 OK
     "solution": "버스 전용 차로 확대 및 신호 체계 개선",
     "expectedEffect": "출퇴근 시간 교통 체증 30% 감소 예상"
   },
-  "status": "SUBMITTABLE",
+  "status": "VOTING",
   "consents": [
     {
       "id": 1,
       "nickname": "홍길동"
     }
   ],
+  "minAgreements": 10,
   "deadline": null,
   "createdAt": "2026-02-17T10:00:00",
   "updatedAt": "2026-02-17T10:00:00"
@@ -956,8 +968,9 @@ HTTP 200 OK
 | `contents.image` | `string` | 이미지 URL |
 | `contents.solution` | `string` | 해결 방안 |
 | `contents.expectedEffect` | `string` | 기대 효과 |
-| `status` | `string` | 제안서 상태 (`SUBMITTABLE` \| `UNSUBMITTABLE` \| `VOTING`) |
+| `status` | `string` | 제안서 상태 (`UNSUBMITTABLE` \| `VOTING` \| `COMPLETED` \| `REJECTED`) |
 | `consents` | `array` | 동의자 목록 (`{id, nickname}[]`) |
+| `minAgreements` | `number` | 목표 동의 인원 (정족수). 투표 시작 전에는 `0` |
 | `deadline` | `string \| null` | 투표 마감 일시 (ISO 8601). 투표 시작 전에는 `null` |
 | `createdAt` | `string` | 생성 일시 (ISO 8601) |
 | `updatedAt` | `string` | 최종 수정 일시 (ISO 8601) |
@@ -1150,9 +1163,10 @@ WebSocket URL: ws://localhost:8080/gyeonggi_partners-chat
 
 | 값 | 설명 |
 |----|------|
-| `SUBMITTABLE` | 제출 가능 상태 (편집 가능, 투표 전) |
-| `UNSUBMITTABLE` | 제출 불가 상태 |
+| `UNSUBMITTABLE` | 제출 불가 상태 (편집 가능, 투표 전) |
 | `VOTING` | 투표 진행 중 |
+| `COMPLETED` | 투표 완료 (가결) |
+| `REJECTED` | 투표 부결 (마감일 경과 또는 정족수 미달) |
 
 ### MessageType (메시지 유형)
 

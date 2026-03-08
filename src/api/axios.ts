@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -39,7 +39,7 @@ api.interceptors.response.use(
 
         // 토큰 갱신 요청
         const refreshResponse = await axios.post(
-          `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/auth/refresh`,
+          `${import.meta.env.VITE_API_BASE_URL}/api/auth/refresh`,
           { refreshToken }
         );
 

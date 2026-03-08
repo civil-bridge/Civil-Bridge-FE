@@ -15,7 +15,7 @@ export const useChat = ({ roomId, userId }: UseChatProps) => {
 
     useEffect(() => {
         const token = localStorage.getItem('accessToken');
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+        const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
         const client = new Client({
             webSocketFactory: () => new SockJS(`${baseUrl}/gyeonggi_partners-chat`),
